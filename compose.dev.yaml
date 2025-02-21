@@ -1,0 +1,43 @@
+services:
+  traefik:
+    extends:
+      file: compose.common.yaml
+      service: traefik
+    command:
+      - --api.dashboard=true
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --entrypoints.web.address=:80
+    ports:
+      - "80:80"
+      - "8080:8080"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`${TRAEFIK_DASHBOARD_DOMAIN}`)"
+      - "traefik.http.routers.traefik.entrypoints=web"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+
+  n8n:
+    extends:
+      file: compose.common.yaml
+      service: n8n
+    environment:
+      - N8N_PROTOCOL=http
+      - N8N_SECURE_COOKIE=false
+    labels:
+      - "traefik.http.routers.n8n.entrypoints=web"
+
+  n8n-db:
+    extends:
+      file: compose.common.yaml
+      service: n8n-db
+
+  adminer:
+    extends:
+      file: compose.common.yaml
+      service: adminer
+    labels:
+      - "traefik.http.routers.adminer.entrypoints=web"
