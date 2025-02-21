@@ -1,0 +1,106 @@
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:1.79.2
+    container_name: n8n
+    restart: always
+    ports:
+      - "127.0.0.1:5678:5678"    # Limite l'accès à localhost uniquement
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_DATABASE=n8n
+      - DB_POSTGRESDB_HOST=n8n-db
+      - DB_POSTGRESDB_USER=n8n
+      - DB_POSTGRESDB_PASSWORD=n8n
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - N8N_JWT_AUTH_ACTIVE=${N8N_JWT_AUTH_ACTIVE}
+      - N8N_JWT_AUTH_HEADER=${N8N_JWT_AUTH_HEADER}
+      - N8N_JWT_AUTH_EXPIRATION_TIME=${N8N_JWT_AUTH_EXPIRATION_TIME}
+      - N8N_SECURITY_AUDIT_ENABLED=true    # Active l'audit de sécurité
+      - N8N_HIRING_AUDIT_ENABLED=true      # Active l'audit des accès
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - n8n_internal
+      - n8n_external
+    depends_on:
+      n8n-db:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true    # Empêche l'escalade de privilèges
+    ulimits:
+      nproc: 65535               # Limite le nombre de processus
+      nofile:
+        soft: 20000              # Limite le nombre de fichiers ouverts
+        hard: 40000
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"          # Limite la taille des logs
+        max-file: "5"            # Garde les 5 derniers fichiers de logs
+
+  n8n-db:
+    image: postgres:15
+    container_name: n8n-db
+    restart: always
+    environment:
+      - POSTGRES_DB=n8n
+      - POSTGRES_USER=n8n
+      - POSTGRES_PASSWORD=n8n
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - n8n_internal    # Base de données uniquement sur le réseau interne
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U n8n"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  adminer:
+    image: adminer
+    container_name: n8n-adminer
+    restart: always
+    ports:
+      - "127.0.0.1:8080:8080"    # Limite l'accès à localhost uniquement
+    networks:
+      - n8n_internal
+      - n8n_external
+    depends_on:
+      - n8n-db
+    environment:
+      - ADMINER_DEFAULT_SERVER=n8n-db
+      - ADMINER_DESIGN=flat      # Interface plus moderne
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  postgres_data:
+  n8n_data:
+
+networks:
+  n8n_internal:
+    name: n8n_internal_network
+    driver: bridge
+    internal: true    # Réseau interne uniquement
+  n8n_external:
+    name: n8n_external_network
+    driver: bridge
