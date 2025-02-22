@@ -67,8 +67,63 @@ systemctl restart docker
 newgrp docker
 
 # Création des répertoires
-log "Création des répertoires..."
-mkdir -p "$INSTALL_DIR"/{data/n8n,data/postgres,traefik/config}
+log "Clonage du dépôt n8n..."
+cd /home/ubuntu
+rm -rf "$INSTALL_DIR"
+git clone https://github.com/COMPLEOAGENCY/n8n.git "$INSTALL_DIR"
+
+# Configuration automatique de .env.prod
+log "Configuration de l'environnement..."
+cd "$INSTALL_DIR"
+cp .env.example .env.prod
+
+# Demande des informations
+echo -e "\n${YELLOW}Configuration de votre environnement${NC}"
+read -p "Entrez votre domaine (ex: compleo.dev) : " DOMAIN
+read -p "Entrez votre email (pour Let's Encrypt) : " EMAIL
+read -s -p "Choisissez un mot de passe admin pour n8n : " N8N_PASSWORD
+echo
+read -s -p "Choisissez un mot de passe admin pour Traefik : " TRAEFIK_PASSWORD
+echo
+
+# Génération des valeurs aléatoires
+ENCRYPTION_KEY=$(openssl rand -hex 16)
+DB_PASSWORD=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
+TRAEFIK_HASHED_PASSWORD=$(echo -n "$TRAEFIK_PASSWORD" | htpasswd -niB admin | cut -d ":" -f 2)
+
+# Configuration du fichier .env.prod
+log "Application de la configuration..."
+sed -i "s/DOMAIN=.*/DOMAIN=$DOMAIN/" .env.prod
+sed -i "s/TRAEFIK_ACME_EMAIL=.*/TRAEFIK_ACME_EMAIL=$EMAIL/" .env.prod
+sed -i "s/N8N_BASIC_AUTH_PASSWORD=.*/N8N_BASIC_AUTH_PASSWORD=$N8N_PASSWORD/" .env.prod
+sed -i "s/N8N_ENCRYPTION_KEY=.*/N8N_ENCRYPTION_KEY=$ENCRYPTION_KEY/" .env.prod
+sed -i "s/POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$DB_PASSWORD/" .env.prod
+sed -i "s/TRAEFIK_DASHBOARD_CREDENTIALS=.*/TRAEFIK_DASHBOARD_CREDENTIALS=admin:$TRAEFIK_HASHED_PASSWORD/" .env.prod
+
+# Sauvegarde des identifiants
+log "Sauvegarde des identifiants..."
+cat > "$INSTALL_DIR/credentials.txt" << EOF
+=== Identifiants n8n ===
+URL : https://n8n.$DOMAIN
+Utilisateur : admin
+Mot de passe : $N8N_PASSWORD
+
+=== Identifiants Traefik ===
+URL : https://traefik.$DOMAIN
+Utilisateur : admin
+Mot de passe : $TRAEFIK_PASSWORD
+
+=== Identifiants Base de données ===
+Hôte : n8n-db
+Base de données : n8n_prod
+Utilisateur : n8n_prod
+Mot de passe : $DB_PASSWORD
+
+!!! IMPORTANT !!!
+Conservez ce fichier dans un endroit sûr et supprimez-le du serveur
+EOF
+
+chmod 600 "$INSTALL_DIR/credentials.txt"
 
 # Configuration de Traefik
 log "Configuration de Traefik..."
@@ -97,20 +152,16 @@ cat << EOF
 ${GREEN}=== Installation terminée avec succès ===${NC}
 
 ${YELLOW}Étapes suivantes :${NC}
-1. Transférez vos fichiers vers le serveur :
-   scp -r * ubuntu@votre-ip:$INSTALL_DIR/
-
-2. Configurez votre environnement :
+1. Configurez votre environnement :
    cd $INSTALL_DIR
-   cp .env.example .env.prod
    nano .env.prod
 
-3. Mettez à jour les variables dans .env.prod :
+2. Mettez à jour les variables dans .env.prod :
    - DOMAIN=votre-domaine.com
    - TRAEFIK_ACME_EMAIL=votre-email@domaine.com
    - Vérifiez que TRAEFIK_DASHBOARD_CREDENTIALS est configuré
 
-4. Démarrez les services avec le script prod.sh :
+3. Démarrez les services avec le script prod.sh :
    cd $INSTALL_DIR
    ./prod.sh up
 
@@ -130,4 +181,5 @@ ${GREEN}Scripts disponibles :${NC}
 - ./prod.sh down   : Arrêter les services
 - ./prod.sh logs   : Voir les logs
 - ./prod.sh ps     : État des services
+- ./prod.sh dns    : Vérifier la configuration DNS
 EOF
