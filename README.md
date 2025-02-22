@@ -1,114 +1,145 @@
-# n8n avec Traefik
+# n8n Docker Setup
 
-Cette configuration permet de déployer n8n avec Traefik comme reverse proxy, en utilisant des configurations distinctes pour le développement et la production.
+Ce projet configure n8n avec Docker, en utilisant Traefik comme reverse proxy et PostgreSQL comme base de données.
 
-## Points d'accès
+## 🔧 Prérequis
 
-### Environnement de développement
-- **n8n**: http://n8n.localhost
-  - Utilisateur : `admin`
-  - Mot de passe : `N8nSecurePass123!`
-- **Adminer**: http://adminer.localhost
-  - Serveur : `n8n-db`
-  - Base de données : `n8n`
-  - Utilisateur : `n8n`
-  - Mot de passe : `n8n`
-- **Traefik Dashboard**: 
-  - Via le routeur : http://traefik.localhost
-  - Accès direct : http://localhost:8080
-  - Utilisateur : `admin`
-  - Mot de passe : `password123`
+- Docker et Docker Compose
+- Git
+- Un domaine configuré sur Cloudflare
+- Pour Windows : PowerShell
+- Pour Linux : Bash
 
-### Environnement de production
-- **n8n**: https://n8n.votre-domaine.com
-- **Adminer**: https://adminer.votre-domaine.com
-- **Traefik Dashboard**: https://traefik.votre-domaine.com
+## 📦 Installation
 
-## Configuration
+### Sur le serveur de production (Linux)
 
-### Structure des fichiers
-```
-.
-├── compose.common.yaml    # Configuration commune
-├── compose.dev.yaml      # Configuration de développement
-├── compose.prod.yaml     # Configuration de production
-├── .env.dev             # Variables d'environnement de développement
-├── .env.prod            # Variables d'environnement de production
-├── .env.example         # Exemple de configuration
-├── data/
-│   ├── n8n/            # Données persistantes de n8n
-│   └── postgres/       # Données persistantes de PostgreSQL
-└── traefik/
-    ├── config/         # Configuration dynamique de Traefik
-    └── acme.json       # Certificats Let's Encrypt
+1. Clonez le dépôt :
+```bash
+git clone <repository_url>
+cd n8n
 ```
 
-### Commandes principales
+2. Exécutez le script d'installation :
+```bash
+chmod +x lightsail-setup.sh
+sudo ./lightsail-setup.sh
+```
 
-#### Développement
+3. Configurez votre environnement :
+```bash
+cp .env.example .env.prod
+nano .env.prod
+```
+
+### Configuration DNS (Cloudflare)
+
+1. Allez sur le dashboard Cloudflare
+2. Sélectionnez votre domaine
+3. Ajoutez les enregistrements DNS A suivants :
+   - `n8n.votre-domaine.com` → IP_SERVEUR
+   - `traefik.votre-domaine.com` → IP_SERVEUR
+   - `adminer.votre-domaine.com` → IP_SERVEUR
+
+4. Pour chaque enregistrement :
+   - Activez le proxy Cloudflare (icône orange)
+   - Dans les paramètres SSL/TLS, réglez sur 'Full'
+
+## 🚀 Utilisation
+
+### En Production (Linux)
+
+```bash
+# Vérifier la configuration DNS
+./prod.sh dns
+
+# Démarrer les services
+./prod.sh up
+
+# Autres commandes disponibles
+./prod.sh down     # Arrêter les services
+./prod.sh restart  # Redémarrer les services
+./prod.sh logs     # Voir les logs
+./prod.sh ps       # État des services
+./prod.sh urls     # Afficher les URLs
+./prod.sh help     # Aide
+```
+
+### En Production (Windows)
+
+```powershell
+# Vérifier la configuration DNS
+.\prod.ps1 dns
+
+# Démarrer les services
+.\prod.ps1 up
+
+# Autres commandes disponibles
+.\prod.ps1 down     # Arrêter les services
+.\prod.ps1 restart  # Redémarrer les services
+.\prod.ps1 logs     # Voir les logs
+.\prod.ps1 ps       # État des services
+.\prod.ps1 urls     # Afficher les URLs
+.\prod.ps1 help     # Aide
+```
+
+### En Développement (Windows)
+
 ```powershell
 # Démarrer les services
-.\dev.ps1
+.\dev.ps1 up
 
-# Arrêter les services
-.\dev.ps1 down
-
-# Voir les logs
-.\dev.ps1 logs -f
-
-# Redémarrer un service spécifique
-.\dev.ps1 restart n8n
+# Autres commandes disponibles
+.\dev.ps1 down     # Arrêter les services
+.\dev.ps1 restart  # Redémarrer les services
+.\dev.ps1 logs     # Voir les logs
+.\dev.ps1 ps       # État des services
+.\dev.ps1 urls     # Afficher les URLs
+.\dev.ps1 help     # Aide
 ```
 
-#### Production
-```powershell
-# Démarrer les services
-.\prod.ps1
+## 🔐 Accès aux Services
 
-# Arrêter les services
-.\prod.ps1 down
+### Production
 
-# Voir les logs
-.\prod.ps1 logs -f
+- n8n : `https://n8n.votre-domaine.com`
+- Traefik Dashboard : `https://traefik.votre-domaine.com`
+- Adminer : `https://adminer.votre-domaine.com`
 
-# Redémarrer un service spécifique
-.\prod.ps1 restart n8n
+### Développement
+
+- n8n : `http://localhost:5678`
+- Traefik Dashboard : `http://localhost:8080`
+- Adminer : `http://localhost:8081`
+
+## 📝 Variables d'Environnement
+
+Copiez `.env.example` vers `.env.prod` ou `.env.dev` et configurez les variables suivantes :
+
+```bash
+# Domaine
+DOMAIN=votre-domaine.com
+
+# Traefik
+TRAEFIK_ACME_EMAIL=votre-email@domaine.com
+TRAEFIK_DASHBOARD_DOMAIN=traefik.votre-domaine.com
+TRAEFIK_DASHBOARD_CREDENTIALS=admin:hashed_password
+
+# n8n
+N8N_BASIC_AUTH_ACTIVE=true
+N8N_BASIC_AUTH_USER=admin
+N8N_BASIC_AUTH_PASSWORD=secure_password
+N8N_ENCRYPTION_KEY=your_encryption_key
+
+# Base de données
+POSTGRES_USER=n8n_prod
+POSTGRES_PASSWORD=secure_password
+POSTGRES_DB=n8n_prod
 ```
 
-### Configuration initiale
+## 🛟 Support
 
-1. Copier `.env.example` vers `.env.dev` et `.env.prod`
-2. Modifier les variables d'environnement selon vos besoins
-3. En production, mettre à jour :
-   - Les noms de domaine
-   - Les mots de passe
-   - L'email pour Let's Encrypt
-   - La clé de chiffrement n8n
-
-### Sécurité
-
-- Les mots de passe par défaut sont uniquement pour le développement
-- En production, changez tous les mots de passe dans `.env.prod`
-- La clé de chiffrement n8n doit être une chaîne de 32 caractères
-- Les certificats SSL sont gérés automatiquement par Let's Encrypt en production
-
-### Données persistantes
-
-Les données sont stockées dans :
-- `data/n8n/` : Workflows et données n8n
-- `data/postgres/` : Base de données PostgreSQL
-
-### Mise à jour
-
-Pour mettre à jour les images :
-```powershell
-.\dev.ps1 pull  # En développement
-.\prod.ps1 pull # En production
-```
-
-## Support
-
-Pour plus d'informations, consultez :
-- [Documentation n8n](https://docs.n8n.io/)
-- [Documentation Traefik](https://doc.traefik.io/traefik/)
-- [Documentation Adminer](https://www.adminer.org/)
+Pour toute question ou problème :
+1. Vérifiez les logs : `./prod.sh logs` ou `.\prod.ps1 logs`
+2. Vérifiez la configuration DNS : `./prod.sh dns` ou `.\prod.ps1 dns`
+3. Consultez l'état des services : `./prod.sh ps` ou `.\prod.ps1 ps`
