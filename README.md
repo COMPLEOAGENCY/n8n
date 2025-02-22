@@ -2,7 +2,7 @@
 
 Cette configuration permet de déployer n8n avec Docker, en utilisant Traefik comme reverse proxy et PostgreSQL comme base de données. Bien qu'optimisée pour Amazon Lightsail, cette configuration est compatible avec tout type d'hébergement supportant Docker et Docker Compose.
 
-## 🌐 Compatibilité
+## Compatibilité
 
 Cette configuration a été testée sur :
 - Amazon Lightsail (recommandé)
@@ -16,92 +16,45 @@ Cette configuration a été testée sur :
 - Stockage : 60 GB minimum
 - OS : Ubuntu 22.04 LTS (ou toute distribution Linux supportant Docker)
 
-## 🔧 Prérequis
+## Prérequis
 
-- Docker et Docker Compose
-- Git
+- Un serveur Linux (Ubuntu 22.04 LTS recommandé)
 - Un domaine configuré sur Cloudflare
-- Pour Windows : PowerShell
+- Pour Windows : PowerShell (développement uniquement)
 - Pour Linux : Bash
 
-### Configuration du serveur
-1. Ports requis :
-   - 80 (HTTP)
-   - 443 (HTTPS)
-   - 22 (SSH, optionnel)
+## Installation
 
-2. Règles de pare-feu :
-   ```bash
-   # Sur Ubuntu/Debian
-   sudo ufw allow 80/tcp
-   sudo ufw allow 443/tcp
-   sudo ufw allow 22/tcp
-   
-   # Sur Amazon Lightsail
-   # Configurez via l'interface de gestion Lightsail
-   ```
+### Installation rapide (Production)
 
-## 📦 Installation
-
-### Sur Amazon Lightsail
-
-1. Créez une instance :
+1. Créez une instance (si sur Lightsail) :
    - Ubuntu 22.04 LTS
    - Plan à 10$ minimum (2 GB RAM)
    - 60 GB stockage
    - Attachez une IP statique
 
-2. Connectez-vous à votre instance et exécutez :
+2. Connectez-vous à votre serveur et exécutez :
    ```bash
-   # Option 1 : Installation directe (plus rapide)
    curl -fsSL https://raw.githubusercontent.com/COMPLEOAGENCY/n8n/main/lightsail-setup.sh | sudo bash
-
-   # Option 2 : Installation en deux étapes (plus sécurisée)
-   curl -fsSL https://raw.githubusercontent.com/COMPLEOAGENCY/n8n/main/lightsail-setup.sh -o setup.sh && \
-   chmod +x setup.sh && \
-   sudo ./setup.sh
    ```
 
-   Le script va automatiquement :
-   - Installer Docker et Docker Compose
-   - Cloner le dépôt n8n
-   - Configurer les permissions
-   - Préparer l'environnement
+3. Suivez les instructions à l'écran pour configurer :
+   - Votre domaine
+   - Votre email (pour Let's Encrypt)
+   - Les mots de passe administrateurs
 
-3. Configurez votre environnement :
-   ```bash
-   cd /home/ubuntu/n8n
-   cp .env.example .env.prod
-   nano .env.prod
-   ```
+   Le script configurera automatiquement :
+   - Docker et Docker Compose
+   - Le dépôt n8n
+   - Les fichiers de configuration
+   - Les permissions
+   - Les mots de passe sécurisés
 
-### Sur d'autres hébergeurs
-
-1. Installez Docker et Docker Compose :
-   ```bash
-   # Sur Ubuntu/Debian
-   curl -fsSL https://get.docker.com -o get-docker.sh
-   sudo sh get-docker.sh
-   sudo apt-get install docker-compose-plugin
-   ```
-
-2. Clonez le dépôt :
-   ```bash
-   git clone <repository_url>
-   cd n8n
-   ```
-
-3. Créez les répertoires nécessaires :
-   ```bash
-   mkdir -p data/n8n data/postgres traefik/acme
-   chmod 600 traefik/acme/acme.json
-   ```
-
-4. Configurez votre environnement :
-   ```bash
-   cp .env.example .env.prod
-   nano .env.prod
-   ```
+4. Conservez le fichier `credentials.txt` généré qui contient :
+   - Les URLs d'accès
+   - Les identifiants n8n
+   - Les identifiants Traefik
+   - Les identifiants base de données
 
 ### Configuration DNS (Cloudflare)
 
@@ -116,9 +69,9 @@ Cette configuration a été testée sur :
    - Activez le proxy Cloudflare (icône orange)
    - Dans les paramètres SSL/TLS, réglez sur 'Full'
 
-## 🚀 Utilisation
+## Utilisation
 
-### En Production (Linux)
+### En Production
 
 ```bash
 # Vérifier la configuration DNS
@@ -136,24 +89,6 @@ Cette configuration a été testée sur :
 ./prod.sh help     # Aide
 ```
 
-### En Production (Windows)
-
-```powershell
-# Vérifier la configuration DNS
-.\prod.ps1 dns
-
-# Démarrer les services
-.\prod.ps1 up
-
-# Autres commandes disponibles
-.\prod.ps1 down     # Arrêter les services
-.\prod.ps1 restart  # Redémarrer les services
-.\prod.ps1 logs     # Voir les logs
-.\prod.ps1 ps       # État des services
-.\prod.ps1 urls     # Afficher les URLs
-.\prod.ps1 help     # Aide
-```
-
 ### En Développement (Windows)
 
 ```powershell
@@ -169,7 +104,7 @@ Cette configuration a été testée sur :
 .\dev.ps1 help     # Aide
 ```
 
-## 🔐 Accès aux Services
+## Accès aux Services
 
 ### Production
 
@@ -183,32 +118,7 @@ Cette configuration a été testée sur :
 - Traefik Dashboard : `http://localhost:8080`
 - Adminer : `http://localhost:8081`
 
-## 📝 Variables d'Environnement
-
-Copiez `.env.example` vers `.env.prod` ou `.env.dev` et configurez les variables suivantes :
-
-```bash
-# Domaine
-DOMAIN=votre-domaine.com
-
-# Traefik
-TRAEFIK_ACME_EMAIL=votre-email@domaine.com
-TRAEFIK_DASHBOARD_DOMAIN=traefik.votre-domaine.com
-TRAEFIK_DASHBOARD_CREDENTIALS=admin:hashed_password
-
-# n8n
-N8N_BASIC_AUTH_ACTIVE=true
-N8N_BASIC_AUTH_USER=admin
-N8N_BASIC_AUTH_PASSWORD=secure_password
-N8N_ENCRYPTION_KEY=your_encryption_key
-
-# Base de données
-POSTGRES_USER=n8n_prod
-POSTGRES_PASSWORD=secure_password
-POSTGRES_DB=n8n_prod
-```
-
-## 🛡️ Sécurité
+## Sécurité
 
 1. Permissions des fichiers :
    ```bash
@@ -224,12 +134,12 @@ POSTGRES_DB=n8n_prod
    - Utilisez Cloudflare en mode "Full"
    - Les certificats sont gérés automatiquement par Let's Encrypt
 
-## 🛟 Support
+## Support
 
 Pour toute question ou problème :
-1. Vérifiez les logs : `./prod.sh logs` ou `.\prod.ps1 logs`
-2. Vérifiez la configuration DNS : `./prod.sh dns` ou `.\prod.ps1 dns`
-3. Consultez l'état des services : `./prod.sh ps` ou `.\prod.ps1 ps`
+1. Vérifiez les logs : `./prod.sh logs`
+2. Vérifiez la configuration DNS : `./prod.sh dns`
+3. Consultez l'état des services : `./prod.sh ps`
 
 ### Problèmes courants
 
