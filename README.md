@@ -51,10 +51,28 @@ Cette configuration a été testée sur :
    - 60 GB stockage
    - Attachez une IP statique
 
-2. Exécutez le script d'installation Lightsail :
+2. Connectez-vous à votre instance et exécutez :
    ```bash
-   chmod +x lightsail-setup.sh
-   sudo ./lightsail-setup.sh
+   # Option 1 : Installation directe (plus rapide)
+   curl -fsSL https://raw.githubusercontent.com/COMPLEOAGENCY/n8n/main/lightsail-setup.sh | sudo bash
+
+   # Option 2 : Installation en deux étapes (plus sécurisée)
+   curl -fsSL https://raw.githubusercontent.com/COMPLEOAGENCY/n8n/main/lightsail-setup.sh -o setup.sh && \
+   chmod +x setup.sh && \
+   sudo ./setup.sh
+   ```
+
+   Le script va automatiquement :
+   - Installer Docker et Docker Compose
+   - Cloner le dépôt n8n
+   - Configurer les permissions
+   - Préparer l'environnement
+
+3. Configurez votre environnement :
+   ```bash
+   cd /home/ubuntu/n8n
+   cp .env.example .env.prod
+   nano .env.prod
    ```
 
 ### Sur d'autres hébergeurs
