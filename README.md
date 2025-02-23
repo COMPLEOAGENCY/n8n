@@ -23,6 +23,32 @@ Cette configuration a été testée sur :
 - Pour Windows : PowerShell (développement uniquement)
 - Pour Linux : Bash
 
+## Structure du Projet
+
+```
+📂 n8n/
+├── 📂 data/ - Contient les données persistantes de l'application (workflows, logs, bases de données)
+├── 📂 traefik/ - Configuration du reverse proxy Traefik pour le routage HTTP/HTTPS
+├── 📂 letsencrypt/ - Certificats SSL/TLS pour le domaine (générés par Let's Encrypt)
+├── 📄 compose.*.yaml - Fichiers de composition Docker pour différents environnements
+│   ├── compose.common.yaml - Configuration commune
+│   ├── compose.dev.yaml - Développement local
+│   └── compose.prod.yaml - Production
+├── 📄 .env.* - Fichiers de configuration d'environnement
+│   ├── .env.dev - Variables dev
+│   └── .env.prod - Variables prod
+└── 📄 *.ps1/*.sh - Scripts de déploiement pour Windows/Linux
+```
+
+### Description des composants
+
+- `data/` : Stockage persistant des workflows n8n, historiques d'exécution, et logs
+- `traefik/config/` : Configuration du routage des requêtes et gestion SSL
+- `letsencrypt/` : Certificats renouvelés automatiquement pour HTTPS
+- `compose.*.yaml` : Définition des services Docker pour les différents environnements
+- `.env.*` : Fichiers de variables d'environnement pour la configuration
+- `*.ps1/*.sh` : Scripts d'automatisation pour Windows (PowerShell) et Linux (Bash)
+
 ## Installation
 
 ### Installation rapide (Production)
