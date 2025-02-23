@@ -1,34 +1,18 @@
 services:
-  traefik:
-    extends:
-      file: compose.common.yaml
-      service: traefik
-    command:
-      - --api.dashboard=true
-      - --api.insecure=true
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --entrypoints.web.address=:80
-      - --log.level=DEBUG
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.traefik.rule=Host(`${TRAEFIK_DASHBOARD_DOMAIN}`)"
-      - "traefik.http.routers.traefik.service=api@internal"
-
   n8n:
     extends:
       file: compose.common.yaml
       service: n8n
     environment:
       - NODE_ENV=development
-      - N8N_EDITOR_BASE_URL=http://${N8N_DOMAIN}
-      - N8N_WEBHOOK_URL=http://${N8N_DOMAIN}
+      - N8N_HOST=0.0.0.0
+      - N8N_PROTOCOL=http
+      - N8N_PORT=5678
+      - N8N_EDITOR_BASE_URL=http://localhost:5678
+      - N8N_WEBHOOK_URL=http://localhost:5678
       - N8N_SECURE_COOKIE=false
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.n8n.rule=Host(`${N8N_DOMAIN}`)"
-      - "traefik.http.services.n8n.loadbalancer.server.port=5678"
-      - "traefik.http.routers.n8n.entrypoints=web"
+    ports:
+      - "5678:5678"
 
   n8n-db:
     extends:
@@ -39,8 +23,5 @@ services:
     extends:
       file: compose.common.yaml
       service: adminer
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.adminer.rule=Host(`${ADMINER_DOMAIN}`)"
-      - "traefik.http.services.adminer.loadbalancer.server.port=8080"
-      - "traefik.http.routers.adminer.entrypoints=web"
+    ports:
+      - "8080:8080"

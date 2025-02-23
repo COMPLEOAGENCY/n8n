@@ -1,5 +1,4 @@
 /data
-/data
 /data/n8n
-.env.prod
-.env.dev
+#.env.prod
+#.env.dev

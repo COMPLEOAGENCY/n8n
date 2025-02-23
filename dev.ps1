@@ -8,17 +8,9 @@ function Write-ColorOutput($ForegroundColor) {
 }
 
 function Show-Urls {
-    # Charger les variables d'environnement depuis .env.dev
-    $envContent = Get-Content .env.dev
-    $domain = ($envContent | Select-String "DOMAIN=(.*)").Matches.Groups[1].Value
-    $n8nDomain = "n8n.$domain"
-    $traefikDomain = "traefik.$domain"
-    $adminerDomain = "adminer.$domain"
-
     Write-Output "`n=== URLs des services ==="
-    Write-ColorOutput Green "n8n:     http://$n8nDomain"
-    Write-ColorOutput Green "Traefik:  http://$traefikDomain"
-    Write-ColorOutput Green "Adminer:  http://$adminerDomain"
+    Write-ColorOutput Green "n8n:     http://localhost:5678"
+    Write-ColorOutput Green "Adminer: http://localhost:8080"
     Write-Output ""
 }
 
@@ -29,9 +21,7 @@ function Show-Help {
     Write-Output "  down    - Arrête les services"
     Write-Output "  restart - Redémarre les services"
     Write-Output "  logs    - Affiche les logs des services"
-    Write-Output "  ps      - Liste les services en cours d'exécution"
-    Write-Output "  urls    - Affiche les URLs des services"
-    Write-Output "  help    - Affiche cette aide"
+    Write-Output ""
 }
 
 $command = $args[0]
@@ -55,11 +45,6 @@ switch ($command) {
     "logs" {
         Write-ColorOutput Green "[INFO] Affichage des logs..."
         docker compose --env-file .env.dev -f compose.dev.yaml logs -f
-    }
-    "ps" {
-        Write-ColorOutput Green "[INFO] Liste des services..."
-        docker compose --env-file .env.dev -f compose.dev.yaml ps
-        Show-Urls
     }
     "urls" {
         Show-Urls
