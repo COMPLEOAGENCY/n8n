@@ -8,10 +8,17 @@ function Write-ColorOutput($ForegroundColor) {
 }
 
 function Show-Urls {
+    # Charger les variables d'environnement depuis .env.dev
+    $envContent = Get-Content .env.dev
+    $domain = ($envContent | Select-String "DOMAIN=(.*)").Matches.Groups[1].Value
+    $n8nDomain = "n8n.$domain"
+    $traefikDomain = "traefik.$domain"
+    $adminerDomain = "adminer.$domain"
+
     Write-Output "`n=== URLs des services ==="
-    Write-ColorOutput Green "n8n:     http://localhost:5678"
-    Write-ColorOutput Green "Traefik:  http://localhost:8080"
-    Write-ColorOutput Green "Adminer:  http://localhost:8081"
+    Write-ColorOutput Green "n8n:     http://$n8nDomain"
+    Write-ColorOutput Green "Traefik:  http://$traefikDomain"
+    Write-ColorOutput Green "Adminer:  http://$adminerDomain"
     Write-Output ""
 }
 

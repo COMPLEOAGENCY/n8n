@@ -68,15 +68,41 @@ check_dns() {
 
 # Fonction pour afficher les URLs des services
 show_urls() {
-    # Récupérer le domaine depuis .env.prod
-    DOMAIN=$(grep "DOMAIN=" .env.prod | cut -d '=' -f2)
+    # Charger les variables d'environnement
+    if [ -f .env.prod ]; then
+        source .env.prod
+    else
+        echo -e "${RED}Erreur : Fichier .env.prod non trouvé${NC}"
+        exit 1
+    fi
     
     echo -e "\n${BLUE}=== URLs des services ===${NC}"
-    echo -e "${GREEN}n8n:${NC}     https://n8n.$DOMAIN"
-    echo -e "${GREEN}Traefik:${NC}  https://traefik.$DOMAIN"
-    echo -e "${GREEN}Adminer:${NC}  https://adminer.$DOMAIN"
+    echo -e "${GREEN}n8n:${NC}     https://${N8N_DOMAIN}"
+    echo -e "${GREEN}Traefik:${NC}  https://${TRAEFIK_DASHBOARD_DOMAIN}"
+    echo -e "${GREEN}Adminer:${NC}  https://${ADMINER_DOMAIN}"
     echo ""
 }
+
+# Fonction pour vérifier et configurer les règles de pare-feu Lightsail
+check_firewall() {
+    echo -e "${GREEN}[INFO]${NC} Instructions pour configurer le pare-feu Lightsail :"
+    echo -e "${GREEN}[INFO]${NC} 1. Allez sur la console Lightsail : https://lightsail.aws.amazon.com"
+    echo -e "${GREEN}[INFO]${NC} 2. Sélectionnez votre instance"
+    echo -e "${GREEN}[INFO]${NC} 3. Cliquez sur l'onglet 'Mise en réseau'"
+    echo -e "${GREEN}[INFO]${NC} 4. Vérifiez que les ports suivants sont ouverts :"
+    echo -e "${GREEN}[INFO]${NC}    - HTTP (80)"
+    echo -e "${GREEN}[INFO]${NC}    - HTTPS (443)"
+    echo -e "${GREEN}[INFO]${NC}    - Custom TCP (8080) pour le dashboard Traefik"
+    echo -e "${GREEN}[INFO]${NC} 5. Si ce n'est pas le cas, cliquez sur 'Ajouter une règle' et ajoutez-les"
+    echo ""
+    read -p "Appuyez sur Entrée une fois que vous avez vérifié les règles du pare-feu..."
+}
+
+# Vérifier si la commande host est disponible
+if ! command -v host >/dev/null 2>&1; then
+    warn "La commande 'host' n'est pas installée. Installation en cours..."
+    apt-get update && apt-get install -y bind9-host
+fi
 
 # Vérification que nous sommes dans le bon répertoire
 if [ ! -f "compose.prod.yaml" ]; then
@@ -99,17 +125,13 @@ show_help() {
     echo "  help    - Affiche cette aide"
 }
 
-# Vérifier si la commande host est disponible
-if ! command -v host >/dev/null 2>&1; then
-    warn "La commande 'host' n'est pas installée. Installation en cours..."
-    apt-get update && apt-get install -y bind9-host
-fi
-
 # Traitement des commandes
 case "$1" in
     "up")
         log "Vérification des DNS..."
         check_dns
+        log "Vérification des règles de pare-feu..."
+        check_firewall
         log "Démarrage des services..."
         docker compose --env-file .env.prod -f compose.prod.yaml up -d
         show_urls
@@ -119,8 +141,6 @@ case "$1" in
         docker compose --env-file .env.prod -f compose.prod.yaml down
         ;;
     "restart")
-        log "Vérification des DNS..."
-        check_dns
         log "Redémarrage des services..."
         docker compose --env-file .env.prod -f compose.prod.yaml down
         docker compose --env-file .env.prod -f compose.prod.yaml up -d

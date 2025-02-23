@@ -97,8 +97,10 @@ sed -i "s/DOMAIN=.*/DOMAIN=$DOMAIN/" .env.prod
 sed -i "s/TRAEFIK_ACME_EMAIL=.*/TRAEFIK_ACME_EMAIL=$EMAIL/" .env.prod
 sed -i "s/N8N_BASIC_AUTH_PASSWORD=.*/N8N_BASIC_AUTH_PASSWORD=$N8N_PASSWORD/" .env.prod
 sed -i "s/N8N_ENCRYPTION_KEY=.*/N8N_ENCRYPTION_KEY=$ENCRYPTION_KEY/" .env.prod
-sed -i "s/POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$DB_PASSWORD/" .env.prod
-sed -i "s/TRAEFIK_DASHBOARD_CREDENTIALS=.*/TRAEFIK_DASHBOARD_CREDENTIALS=admin:$TRAEFIK_HASHED_PASSWORD/" .env.prod
+sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=$DB_PASSWORD/" .env.prod
+sed -i "s/DB_NAME=.*/DB_NAME=n8n_prod/" .env.prod
+sed -i "s/DB_USER=.*/DB_USER=n8n_prod/" .env.prod
+sed -i "s/TRAEFIK_DASHBOARD_CREDENTIALS=.*/TRAEFIK_DASHBOARD_CREDENTIALS=\"admin:$TRAEFIK_HASHED_PASSWORD\"/" .env.prod
 
 # Sauvegarde des identifiants
 log "Sauvegarde des identifiants..."
