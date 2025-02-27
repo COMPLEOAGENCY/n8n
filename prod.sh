@@ -76,10 +76,12 @@ show_urls() {
         exit 1
     fi
     
+    # Récupérer l'adresse IPv4 publique
+    IP=$(curl -s -4 ifconfig.me)
+    
     echo -e "\n${BLUE}=== URLs des services ===${NC}"
-    echo -e "${GREEN}n8n:${NC}     https://${N8N_DOMAIN}"
-    echo -e "${GREEN}Traefik:${NC}  https://${TRAEFIK_DASHBOARD_DOMAIN}"
-    echo -e "${GREEN}Adminer:${NC}  https://${ADMINER_DOMAIN}"
+    echo -e "${GREEN}n8n:${NC}     http://${IP}:5678"
+    echo -e "${GREEN}Adminer:${NC}  http://${IP}:8080"
     echo ""
 }
 
