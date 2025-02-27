@@ -20,10 +20,10 @@ services:
       - N8N_PROTOCOL=https
       - N8N_PORT=5678
       - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
-      - N8N_EDITOR_BASE_URL=https://${N8N_DOMAIN}
-      - N8N_WEBHOOK_URL=https://${N8N_DOMAIN}
-      - WEBHOOK_TUNNEL_URL=https://${N8N_DOMAIN}
-      - N8N_ENDPOINT_REST=https://${N8N_DOMAIN}
+      - N8N_EDITOR_BASE_URL=${N8N_DOMAIN}
+      - N8N_WEBHOOK_URL=${N8N_DOMAIN}
+      - WEBHOOK_TUNNEL_URL=${N8N_DOMAIN}
+      - N8N_ENDPOINT_REST=${N8N_DOMAIN}
     expose:
       - "5678"
     restart: unless-stopped
