@@ -23,20 +23,33 @@ warn() {
 # Fonction pour vérifier les DNS
 check_dns() {
     # Récupérer le domaine depuis .env.prod
-    DOMAIN=$(grep "DOMAIN=" .env.prod | cut -d '=' -f2)
-    local has_error=0
+    if [ -f .env.prod ]; then
+        source .env.prod
+    else
+        error "Fichier .env.prod non trouvé"
+        exit 1
+    fi
 
     echo -e "\n${BLUE}=== Vérification des DNS ===${NC}"
     
     # Liste des sous-domaines à vérifier
-    local subdomains=("n8n" "traefik" "adminer")
+    local subdomains=("n8n" "adminer")
+    local has_error=0
     
     for subdomain in "${subdomains[@]}"; do
-        local full_domain="$subdomain.$DOMAIN"
+        local full_domain="${subdomain}.${N8N_DOMAIN#*.}"
         echo -n "Vérification de $full_domain... "
         
+        # Vérifier si le DNS résout
         if host "$full_domain" >/dev/null 2>&1; then
-            echo -e "${GREEN}OK${NC}"
+            # Vérifier si le DNS pointe vers le Load Balancer
+            local dns_ip=$(dig +short $full_domain)
+            if [[ $dns_ip == *"amazonaws.com"* ]] || [[ $dns_ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                echo -e "${GREEN}OK${NC}"
+            else
+                echo -e "${YELLOW}ATTENTION: Ne pointe pas vers AWS${NC}"
+                has_error=1
+            fi
         else
             echo -e "${RED}NON CONFIGURÉ${NC}"
             has_error=1
@@ -44,18 +57,13 @@ check_dns() {
     done
 
     if [ $has_error -eq 1 ]; then
-        echo -e "\n${RED}[ERROR] Certains DNS ne sont pas configurés correctement.${NC}"
-        echo -e "${YELLOW}Configuration DNS requise (Cloudflare) :${NC}"
-        echo -e "1. Allez sur le dashboard Cloudflare"
-        echo -e "2. Sélectionnez le domaine $DOMAIN"
-        echo -e "3. Ajoutez les enregistrements DNS A suivants :"
-        echo -e "   - n8n.$DOMAIN     → [IP_SERVEUR]"
-        echo -e "   - traefik.$DOMAIN → [IP_SERVEUR]"
-        echo -e "   - adminer.$DOMAIN → [IP_SERVEUR]"
-        echo -e "\n${YELLOW}Notes importantes :${NC}"
-        echo -e "- Proxy Status : Activez le proxy Cloudflare (orange) pour le SSL"
-        echo -e "- SSL/TLS : Réglez sur 'Full' dans les paramètres Cloudflare"
-        echo -e "- La propagation DNS peut prendre quelques minutes avec Cloudflare"
+        echo -e "\n${YELLOW}[WARN] Certains DNS peuvent ne pas être correctement configurés.${NC}"
+        echo -e "${YELLOW}Vérifiez que les DNS suivants pointent vers votre Load Balancer :${NC}"
+        echo -e "   - n8n.${N8N_DOMAIN#*.}     → Load Balancer AWS"
+        echo -e "   - adminer.${N8N_DOMAIN#*.} → Load Balancer AWS"
+        echo -e "\n${YELLOW}Notes :${NC}"
+        echo -e "- La propagation DNS peut prendre jusqu'à 48h"
+        echo -e "- Vous pouvez continuer, mais les services pourraient ne pas être accessibles"
         
         read -p "Voulez-vous continuer quand même ? (o/N) " response
         if [[ ! "$response" =~ ^[oO]$ ]]; then
@@ -66,65 +74,75 @@ check_dns() {
     fi
 }
 
+# Fonction pour vérifier l'état des services
+check_services() {
+    echo -e "\n${BLUE}=== Vérification des services ===${NC}"
+    
+    # Vérifier si les conteneurs sont en cours d'exécution
+    if docker compose --env-file .env.prod -f compose.prod.yaml ps | grep -q "Up"; then
+        echo -e "${GREEN}✓ Les services sont en cours d'exécution${NC}"
+        
+        # Vérifier l'accès à Nginx
+        if curl -s -o /dev/null -w "%{http_code}" http://localhost:80 | grep -q "200\|301\|302"; then
+            echo -e "${GREEN}✓ Nginx répond correctement${NC}"
+        else
+            warn "Nginx ne répond pas correctement"
+        fi
+        
+        # Vérifier l'accès à n8n
+        if curl -s -o /dev/null -w "%{http_code}" http://localhost:5678 | grep -q "200\|301\|302"; then
+            echo -e "${GREEN}✓ n8n répond correctement${NC}"
+        else
+            warn "n8n ne répond pas correctement"
+        fi
+        
+        # Vérifier l'accès à Adminer
+        if curl -s -o /dev/null -w "%{http_code}" http://localhost:8080 | grep -q "200\|301\|302"; then
+            echo -e "${GREEN}✓ Adminer répond correctement${NC}"
+        else
+            warn "Adminer ne répond pas correctement"
+        fi
+    else
+        warn "Certains services ne sont pas en cours d'exécution"
+    fi
+}
+
 # Fonction pour afficher les URLs des services
 show_urls() {
     # Charger les variables d'environnement
     if [ -f .env.prod ]; then
         source .env.prod
     else
-        echo -e "${RED}Erreur : Fichier .env.prod non trouvé${NC}"
+        error "Fichier .env.prod non trouvé"
         exit 1
     fi
     
-    # Récupérer l'adresse IPv4 publique
-    IP=$(curl -s -4 ifconfig.me)
-    
     echo -e "\n${BLUE}=== URLs des services ===${NC}"
-    echo -e "${GREEN}n8n:${NC}     http://${IP}:5678"
-    echo -e "${GREEN}Adminer:${NC}  http://${IP}:8080"
+    echo -e "${GREEN}n8n:${NC}     https://${N8N_DOMAIN}"
+    echo -e "${GREEN}Adminer:${NC}  https://adminer.${N8N_DOMAIN#*.}"
+    
+    # Afficher aussi les URLs locales
+    echo -e "\n${BLUE}=== URLs locales (pour debug) ===${NC}"
+    echo -e "${GREEN}n8n:${NC}     http://localhost:5678"
+    echo -e "${GREEN}Adminer:${NC}  http://localhost:8080"
+    echo -e "${GREEN}Nginx:${NC}    http://localhost:80"
     echo ""
 }
 
-# Fonction pour vérifier et configurer les règles de pare-feu Lightsail
-check_firewall() {
-    echo -e "${GREEN}[INFO]${NC} Instructions pour configurer le pare-feu Lightsail :"
-    echo -e "${GREEN}[INFO]${NC} 1. Allez sur la console Lightsail : https://lightsail.aws.amazon.com"
-    echo -e "${GREEN}[INFO]${NC} 2. Sélectionnez votre instance"
-    echo -e "${GREEN}[INFO]${NC} 3. Cliquez sur l'onglet 'Mise en réseau'"
-    echo -e "${GREEN}[INFO]${NC} 4. Vérifiez que les ports suivants sont ouverts :"
-    echo -e "${GREEN}[INFO]${NC}    - HTTP (80)"
-    echo -e "${GREEN}[INFO]${NC}    - HTTPS (443)"
-    echo -e "${GREEN}[INFO]${NC}    - Custom TCP (8080) pour le dashboard Traefik"
-    echo -e "${GREEN}[INFO]${NC} 5. Si ce n'est pas le cas, cliquez sur 'Ajouter une règle' et ajoutez-les"
-    echo ""
-    read -p "Appuyez sur Entrée une fois que vous avez vérifié les règles du pare-feu..."
-}
-
-# Vérifier si la commande host est disponible
-if ! command -v host >/dev/null 2>&1; then
-    warn "La commande 'host' n'est pas installée. Installation en cours..."
-    apt-get update && apt-get install -y bind9-host
-fi
-
-# Vérification que nous sommes dans le bon répertoire
-if [ ! -f "compose.prod.yaml" ]; then
-    error "Ce script doit être exécuté depuis le répertoire n8n"
-    exit 1
-fi
-
-# Fonction pour afficher l'aide
+# Fonction d'aide
 show_help() {
     echo "Usage: ./prod.sh [command]"
     echo ""
     echo "Commands:"
-    echo "  up      - Démarre les services en mode détaché"
-    echo "  down    - Arrête les services"
-    echo "  restart - Redémarre les services"
-    echo "  logs    - Affiche les logs des services"
-    echo "  ps      - Liste les services en cours d'exécution"
-    echo "  urls    - Affiche les URLs des services"
-    echo "  dns     - Vérifie la configuration DNS"
-    echo "  help    - Affiche cette aide"
+    echo "  up        - Démarre les services en mode détaché"
+    echo "  down      - Arrête les services"
+    echo "  restart   - Redémarre les services"
+    echo "  logs      - Affiche les logs des services"
+    echo "  ps        - Liste les services en cours d'exécution"
+    echo "  urls      - Affiche les URLs des services"
+    echo "  dns       - Vérifie la configuration DNS"
+    echo "  check     - Vérifie l'état des services"
+    echo "  help      - Affiche cette aide"
 }
 
 # Traitement des commandes
@@ -132,10 +150,11 @@ case "$1" in
     "up")
         log "Vérification des DNS..."
         check_dns
-        log "Vérification des règles de pare-feu..."
-        check_firewall
         log "Démarrage des services..."
         docker compose --env-file .env.prod -f compose.prod.yaml up -d
+        log "Vérification des services..."
+        sleep 5  # Attendre que les services démarrent
+        check_services
         show_urls
         ;;
     "down")
@@ -146,6 +165,9 @@ case "$1" in
         log "Redémarrage des services..."
         docker compose --env-file .env.prod -f compose.prod.yaml down
         docker compose --env-file .env.prod -f compose.prod.yaml up -d
+        log "Vérification des services..."
+        sleep 5  # Attendre que les services démarrent
+        check_services
         show_urls
         ;;
     "logs")
@@ -162,6 +184,9 @@ case "$1" in
         ;;
     "dns")
         check_dns
+        ;;
+    "check")
+        check_services
         ;;
     "help"|"")
         show_help
