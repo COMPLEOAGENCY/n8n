@@ -39,7 +39,9 @@ apt install -y \
     apt-transport-https \
     ca-certificates \
     curl \
-    software-properties-common
+    software-properties-common \
+    git \
+    bind9-host
 
 # Installation de Docker
 log "Installation de Docker..."
@@ -80,27 +82,62 @@ cp .env.example .env.prod
 # Demande des informations
 echo -e "\n${YELLOW}Configuration de votre environnement${NC}"
 read -p "Entrez votre domaine (ex: compleo.dev) : " DOMAIN
-read -p "Entrez votre email (pour Let's Encrypt) : " EMAIL
 read -s -p "Choisissez un mot de passe admin pour n8n : " N8N_PASSWORD
-echo
-read -s -p "Choisissez un mot de passe admin pour Traefik : " TRAEFIK_PASSWORD
 echo
 
 # Génération des valeurs aléatoires
 ENCRYPTION_KEY=$(openssl rand -hex 16)
 DB_PASSWORD=$(openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
-TRAEFIK_HASHED_PASSWORD=$(echo -n "$TRAEFIK_PASSWORD" | htpasswd -niB admin | cut -d ":" -f 2)
+N8N_VERSION="1.80.4"
 
 # Configuration du fichier .env.prod
 log "Application de la configuration..."
-sed -i "s/DOMAIN=.*/DOMAIN=$DOMAIN/" .env.prod
-sed -i "s/TRAEFIK_ACME_EMAIL=.*/TRAEFIK_ACME_EMAIL=$EMAIL/" .env.prod
-sed -i "s/N8N_BASIC_AUTH_PASSWORD=.*/N8N_BASIC_AUTH_PASSWORD=$N8N_PASSWORD/" .env.prod
-sed -i "s/N8N_ENCRYPTION_KEY=.*/N8N_ENCRYPTION_KEY=$ENCRYPTION_KEY/" .env.prod
 sed -i "s/DB_PASSWORD=.*/DB_PASSWORD=$DB_PASSWORD/" .env.prod
 sed -i "s/DB_NAME=.*/DB_NAME=n8n_prod/" .env.prod
 sed -i "s/DB_USER=.*/DB_USER=n8n_prod/" .env.prod
-sed -i "s/TRAEFIK_DASHBOARD_CREDENTIALS=.*/TRAEFIK_DASHBOARD_CREDENTIALS=\"admin:$TRAEFIK_HASHED_PASSWORD\"/" .env.prod
+sed -i "s/N8N_BASIC_AUTH_PASSWORD=.*/N8N_BASIC_AUTH_PASSWORD=$N8N_PASSWORD/" .env.prod
+sed -i "s/N8N_ENCRYPTION_KEY=.*/N8N_ENCRYPTION_KEY=$ENCRYPTION_KEY/" .env.prod
+sed -i "s/N8N_DOMAIN=.*/N8N_DOMAIN=n8n.$DOMAIN/" .env.prod
+sed -i "s/N8N_PROTOCOL=.*/N8N_PROTOCOL=https/" .env.prod
+echo "N8N_VERSION=$N8N_VERSION" >> .env.prod
+
+# Création du répertoire nginx/conf.d
+log "Configuration de Nginx..."
+mkdir -p "$INSTALL_DIR/nginx/conf.d"
+
+# Création du fichier de configuration Nginx
+cat > "$INSTALL_DIR/nginx/conf.d/default.conf" << EOF
+server {
+    listen 80;
+    server_name n8n.$DOMAIN;
+
+    location / {
+        proxy_pass http://n8n:5678;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        
+        # WebSocket support
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+
+server {
+    listen 80;
+    server_name adminer.$DOMAIN;
+
+    location / {
+        proxy_pass http://adminer:8080;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
 
 # Sauvegarde des identifiants
 log "Sauvegarde des identifiants..."
@@ -110,78 +147,49 @@ URL : https://n8n.$DOMAIN
 Utilisateur : admin
 Mot de passe : $N8N_PASSWORD
 
-=== Identifiants Traefik ===
-URL : https://traefik.$DOMAIN
-Utilisateur : admin
-Mot de passe : $TRAEFIK_PASSWORD
-
 === Identifiants Base de données ===
 Hôte : n8n-db
 Base de données : n8n_prod
 Utilisateur : n8n_prod
 Mot de passe : $DB_PASSWORD
 
-!!! IMPORTANT !!!
-Conservez ce fichier dans un endroit sûr et supprimez-le du serveur
+=== Identifiants Adminer ===
+URL : https://adminer.$DOMAIN
+Serveur : n8n-db
+Base de données : n8n_prod
+Utilisateur : n8n_prod
+Mot de passe : $DB_PASSWORD
 EOF
 
+# Définir les permissions
+log "Configuration des permissions..."
+chown -R ubuntu:ubuntu "$INSTALL_DIR"
 chmod 600 "$INSTALL_DIR/credentials.txt"
 
-# Configuration de Traefik
-log "Configuration de Traefik..."
-touch "$INSTALL_DIR/traefik/acme.json"
-chmod 600 "$INSTALL_DIR/traefik/acme.json"
+# Création du script de démarrage
+log "Création du script de démarrage..."
+cat > "$INSTALL_DIR/start.sh" << EOF
+#!/bin/bash
+cd "$INSTALL_DIR"
+./prod.sh up
+EOF
 
-# Configuration des permissions
-log "Configuration des permissions des fichiers..."
-chown -R ubuntu:ubuntu "$INSTALL_DIR"
-chmod -R 755 "$INSTALL_DIR"
-
-# Configuration des permissions pour les scripts shell
-log "Configuration des permissions des scripts..."
-find "$INSTALL_DIR" -type f -name "*.sh" -exec chmod +x {} \;
-
-# Vérification des permissions
-log "Vérification des permissions..."
-if ! groups ubuntu | grep -q docker; then
-    warn "L'utilisateur ubuntu n'est pas dans le groupe docker. Ajout en cours..."
-    usermod -aG docker ubuntu
-fi
+chmod +x "$INSTALL_DIR/start.sh"
+chmod +x "$INSTALL_DIR/prod.sh"
 
 # Instructions finales
-cat << EOF
+echo -e "\n${GREEN}=== Installation terminée avec succès ===${NC}"
+echo -e "Vos identifiants ont été sauvegardés dans $INSTALL_DIR/credentials.txt"
+echo -e "\n${YELLOW}Prochaines étapes :${NC}"
+echo -e "1. Configurez votre solution de load balancing (AWS Lightsail LB ou autre)"
+echo -e "2. Configurez des certificats SSL pour les domaines n8n.$DOMAIN et adminer.$DOMAIN"
+echo -e "3. Configurez les DNS pour pointer vers votre serveur ou load balancer"
+echo -e "4. Démarrez les services avec la commande : cd $INSTALL_DIR && ./prod.sh up"
+echo -e "\nPour plus d'informations, consultez le README.md"
 
-${GREEN}=== Installation terminée avec succès ===${NC}
+echo -e "\n${YELLOW}Note :${NC}"
+echo -e "Pour que les changements de permission Docker prennent effet,"
+echo -e "vous devrez peut-être vous déconnecter et vous reconnecter à votre session SSH."
 
-${YELLOW}Étapes suivantes :${NC}
-1. Configurez votre environnement :
-   cd $INSTALL_DIR
-   nano .env.prod
-
-2. Mettez à jour les variables dans .env.prod :
-   - DOMAIN=votre-domaine.com
-   - TRAEFIK_ACME_EMAIL=votre-email@domaine.com
-   - Vérifiez que TRAEFIK_DASHBOARD_CREDENTIALS est configuré
-
-3. Démarrez les services avec le script prod.sh :
-   cd $INSTALL_DIR
-   ./prod.sh up
-
-${YELLOW}Important :${NC}
-- Mettez à jour vos enregistrements DNS pour pointer vers cette instance
-- Les certificats SSL seront générés automatiquement
-- Les identifiants du dashboard Traefik sont configurés dans .env.prod
-
-Pour plus d'informations, consultez le README.md
-
-${YELLOW}Note :${NC}
-Pour que les changements de permission Docker prennent effet,
-vous devrez peut-être vous déconnecter et vous reconnecter à votre session SSH.
-
-${GREEN}Scripts disponibles :${NC}
-- ./prod.sh up     : Démarrer les services
-- ./prod.sh down   : Arrêter les services
-- ./prod.sh logs   : Voir les logs
-- ./prod.sh ps     : État des services
-- ./prod.sh dns    : Vérifier la configuration DNS
-EOF
+# Fin du script
+log "Installation terminée avec succès"

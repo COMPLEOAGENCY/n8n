@@ -22,32 +22,44 @@ warn() {
 
 # Fonction pour vérifier les DNS
 check_dns() {
-    # Récupérer le domaine depuis .env.prod
+    echo -e "\n${BLUE}=== Vérification des DNS ===${NC}"
+    
+    # S'assurer que les variables d'environnement sont chargées
     if [ -f .env.prod ]; then
         source .env.prod
     else
         error "Fichier .env.prod non trouvé"
         exit 1
     fi
-
-    echo -e "\n${BLUE}=== Vérification des DNS ===${NC}"
+    
+    # Vérifier que N8N_DOMAIN est défini
+    if [ -z "$N8N_DOMAIN" ]; then
+        error "Variable N8N_DOMAIN non définie dans .env.prod"
+        exit 1
+    fi
+    
+    # Récupérer le domaine de base
+    local base_domain=${N8N_DOMAIN#n8n.}
+    local has_error=0
+    
+    # Afficher le domaine pour debug
+    echo "Domaine de base: $base_domain"
     
     # Liste des sous-domaines à vérifier
     local subdomains=("n8n" "adminer")
-    local has_error=0
     
     for subdomain in "${subdomains[@]}"; do
-        local full_domain="${subdomain}.${N8N_DOMAIN#*.}"
+        local full_domain="${subdomain}.${base_domain}"
         echo -n "Vérification de $full_domain... "
         
         # Vérifier si le DNS résout
         if host "$full_domain" >/dev/null 2>&1; then
-            # Vérifier si le DNS pointe vers le Load Balancer
-            local dns_ip=$(dig +short $full_domain)
-            if [[ $dns_ip == *"amazonaws.com"* ]] || [[ $dns_ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            # Vérifier si le DNS résout vers une IP
+            local dns_result=$(dig +short $full_domain)
+            if [[ -n "$dns_result" ]]; then
                 echo -e "${GREEN}OK${NC}"
             else
-                echo -e "${YELLOW}ATTENTION: Ne pointe pas vers AWS${NC}"
+                echo -e "${YELLOW}ATTENTION: DNS non résolu${NC}"
                 has_error=1
             fi
         else
@@ -58,9 +70,9 @@ check_dns() {
 
     if [ $has_error -eq 1 ]; then
         echo -e "\n${YELLOW}[WARN] Certains DNS peuvent ne pas être correctement configurés.${NC}"
-        echo -e "${YELLOW}Vérifiez que les DNS suivants pointent vers votre Load Balancer :${NC}"
-        echo -e "   - n8n.${N8N_DOMAIN#*.}     → Load Balancer AWS"
-        echo -e "   - adminer.${N8N_DOMAIN#*.} → Load Balancer AWS"
+        echo -e "${YELLOW}Vérifiez que les DNS suivants sont correctement configurés :${NC}"
+        echo -e "   - n8n.${base_domain}"
+        echo -e "   - adminer.${base_domain}"
         echo -e "\n${YELLOW}Notes :${NC}"
         echo -e "- La propagation DNS peut prendre jusqu'à 48h"
         echo -e "- Vous pouvez continuer, mais les services pourraient ne pas être accessibles"

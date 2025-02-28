@@ -1,6 +1,6 @@
 # n8n Docker Setup
 
-Cette configuration permet de déployer n8n avec Docker, en utilisant Traefik comme reverse proxy et PostgreSQL comme base de données. Bien qu'optimisée pour Amazon Lightsail, cette configuration est compatible avec tout type d'hébergement supportant Docker et Docker Compose.
+Cette configuration permet de déployer n8n avec Docker, en utilisant Nginx comme reverse proxy et PostgreSQL comme base de données. Bien qu'optimisée pour Amazon Lightsail, cette configuration est compatible avec tout type d'hébergement supportant Docker et Docker Compose.
 
 ## Compatibilité
 
@@ -19,17 +19,15 @@ Cette configuration a été testée sur :
 ## Prérequis
 
 - Un serveur Linux (Ubuntu 22.04 LTS recommandé)
-- Un domaine configuré sur Cloudflare
+- Un domaine configuré sur votre fournisseur DNS
 - Pour Windows : PowerShell (développement uniquement)
 - Pour Linux : Bash
 
 ## Structure du Projet
 
-```
 📂 n8n/
 ├── 📂 data/ - Contient les données persistantes de l'application (workflows, logs, bases de données)
-├── 📂 traefik/ - Configuration du reverse proxy Traefik pour le routage HTTP/HTTPS
-├── 📂 letsencrypt/ - Certificats SSL/TLS pour le domaine (générés par Let's Encrypt)
+├── 📂 nginx/ - Configuration du reverse proxy Nginx pour le routage HTTP/HTTPS
 ├── 📄 compose.*.yaml - Fichiers de composition Docker pour différents environnements
 │   ├── compose.common.yaml - Configuration commune
 │   ├── compose.dev.yaml - Développement local
@@ -38,13 +36,11 @@ Cette configuration a été testée sur :
 │   ├── .env.dev - Variables dev
 │   └── .env.prod - Variables prod
 └── 📄 *.ps1/*.sh - Scripts de déploiement pour Windows/Linux
-```
 
 ### Description des composants
 
 - `data/` : Stockage persistant des workflows n8n, historiques d'exécution, et logs
-- `traefik/config/` : Configuration du routage des requêtes et gestion SSL
-- `letsencrypt/` : Certificats renouvelés automatiquement pour HTTPS
+- `nginx/conf.d/` : Configuration du routage des requêtes HTTP
 - `compose.*.yaml` : Définition des services Docker pour les différents environnements
 - `.env.*` : Fichiers de variables d'environnement pour la configuration
 - `*.ps1/*.sh` : Scripts d'automatisation pour Windows (PowerShell) et Linux (Bash)
@@ -66,7 +62,6 @@ Cette configuration a été testée sur :
 
 3. Suivez les instructions à l'écran pour configurer :
    - Votre domaine
-   - Votre email (pour Let's Encrypt)
    - Les mots de passe administrateurs
 
    Le script configurera automatiquement :
@@ -79,21 +74,29 @@ Cette configuration a été testée sur :
 4. Conservez le fichier `credentials.txt` généré qui contient :
    - Les URLs d'accès
    - Les identifiants n8n
-   - Les identifiants Traefik
    - Les identifiants base de données
 
-### Configuration DNS (Cloudflare)
+### Configuration du Load Balancer
 
-1. Allez sur le dashboard Cloudflare
-2. Sélectionnez votre domaine
-3. Ajoutez les enregistrements DNS A suivants :
-   - `n8n.votre-domaine.com` → IP_SERVEUR
-   - `traefik.votre-domaine.com` → IP_SERVEUR
-   - `adminer.votre-domaine.com` → IP_SERVEUR
+Vous pouvez utiliser n'importe quelle solution de load balancing :
 
-4. Pour chaque enregistrement :
-   - Activez le proxy Cloudflare (icône orange)
-   - Dans les paramètres SSL/TLS, réglez sur 'Full'
+1. AWS Lightsail Load Balancer
+2. Nginx Proxy Manager
+3. HAProxy
+4. Traefik
+5. Ou tout autre reverse proxy de votre choix
+
+Configurez votre solution pour :
+1. Rediriger le trafic HTTP vers HTTPS
+2. Gérer les certificats SSL pour vos domaines
+3. Router le trafic vers votre instance n8n
+
+### Configuration DNS
+
+1. Dans votre gestionnaire DNS (Route 53, Cloudflare, OVH, etc.)
+2. Créez des enregistrements pour pointer vers votre serveur ou load balancer :
+   - `n8n.votre-domaine.com` → Votre serveur ou load balancer
+   - `adminer.votre-domaine.com` → Votre serveur ou load balancer
 
 ## Utilisation
 
@@ -112,6 +115,7 @@ Cette configuration a été testée sur :
 ./prod.sh logs     # Voir les logs
 ./prod.sh ps       # État des services
 ./prod.sh urls     # Afficher les URLs
+./prod.sh check    # Vérifier l'état des services
 ./prod.sh help     # Aide
 ```
 
@@ -135,21 +139,19 @@ Cette configuration a été testée sur :
 ### Production
 
 - n8n : `https://n8n.votre-domaine.com`
-- Traefik Dashboard : `https://traefik.votre-domaine.com`
 - Adminer : `https://adminer.votre-domaine.com`
 
 ### Développement
 
 - n8n : `http://localhost:5678`
-- Traefik Dashboard : `http://localhost:8080`
-- Adminer : `http://localhost:8081`
+- Adminer : `http://localhost:8080`
+- Nginx : `http://localhost:80`
 
 ## Sécurité
 
 1. Permissions des fichiers :
    ```bash
    chmod 600 .env.prod
-   chmod 600 traefik/acme/acme.json
    ```
 
 2. Pare-feu :
@@ -157,15 +159,16 @@ Cette configuration a été testée sur :
    - Utilisez les groupes de sécurité AWS si sur Lightsail
 
 3. SSL/TLS :
-   - Utilisez Cloudflare en mode "Full"
-   - Les certificats sont gérés automatiquement par Let's Encrypt
+   - Utilisez votre solution de load balancing pour gérer les certificats SSL
+   - Configurez les certificats SSL dans votre gestionnaire DNS
 
 ## Support
 
 Pour toute question ou problème :
 1. Vérifiez les logs : `./prod.sh logs`
 2. Vérifiez la configuration DNS : `./prod.sh dns`
-3. Consultez l'état des services : `./prod.sh ps`
+3. Vérifiez l'état des services : `./prod.sh check`
+4. Consultez l'état des services : `./prod.sh ps`
 
 ### Problèmes courants
 
@@ -176,7 +179,6 @@ Pour toute question ou problème :
    - Vérifiez les permissions des fichiers :
      ```bash
      sudo chown -R 1000:1000 data/n8n
-     sudo chmod 600 traefik/acme/acme.json
      ```
    - Sur Windows, utilisez le script PowerShell
    - Sur Linux, assurez-vous que les scripts ont les permissions d'exécution :
@@ -187,25 +189,19 @@ Pour toute question ou problème :
 
 2. **Erreurs SSL/DNS** :
    - Vérifiez la configuration DNS avec `dns`
-   - Assurez-vous que Cloudflare est en mode "Full"
-   - Attendez la propagation DNS (peut prendre jusqu'à 24h)
+   - Vérifiez que votre solution SSL est correctement configurée
+   - Attendez la propagation DNS (peut prendre jusqu'à 48h)
    - Vérifiez que tous les sous-domaines sont configurés :
      - n8n.votre-domaine.com
-     - traefik.votre-domaine.com
      - adminer.votre-domaine.com
-   - Dans Cloudflare :
-     - Activez le proxy (icône orange) pour chaque sous-domaine
-     - Vérifiez que le mode SSL/TLS est sur "Full"
-     - Désactivez temporairement le mode "Development" si activé
+   - Dans votre gestionnaire DNS :
+     - Vérifiez que les certificats SSL sont valides
+     - Vérifiez que les règles de routage sont correctes
 
 3. **Problèmes de permissions** :
    - Erreur "permission denied" sur n8n :
      ```bash
      sudo chown -R 1000:1000 data/n8n
-     ```
-   - Erreur sur acme.json :
-     ```bash
-     sudo chmod 600 traefik/acme/acme.json
      ```
    - Erreur sur les fichiers .env :
      ```bash
@@ -214,14 +210,11 @@ Pour toute question ou problème :
      ```
 
 4. **Erreurs de configuration** :
-   - Le dashboard Traefik n'est pas accessible :
-     - Vérifiez TRAEFIK_DASHBOARD_DOMAIN dans .env.prod
-     - Vérifiez TRAEFIK_DASHBOARD_CREDENTIALS
    - n8n ne démarre pas :
      - Vérifiez N8N_ENCRYPTION_KEY (32 caractères requis)
      - Vérifiez les identifiants PostgreSQL
    - Erreurs de base de données :
-     - Vérifiez que les variables POSTGRES_* correspondent dans .env.prod
+     - Vérifiez que les variables DB_* correspondent dans .env.prod
      - Assurez-vous que le volume PostgreSQL existe :
        ```bash
        mkdir -p data/postgres
@@ -253,10 +246,10 @@ Pour toute question ou problème :
    - Sauvegardez avant toute mise à jour :
      ```bash
      # Sur Linux
-     sudo tar czf n8n-backup-$(date +%Y%m%d).tar.gz data traefik/acme/acme.json .env.prod
+     sudo tar czf n8n-backup-$(date +%Y%m%d).tar.gz data .env.prod
      
      # Sur Windows PowerShell
-     Compress-Archive -Path data,traefik/acme/acme.json,.env.prod -DestinationPath "n8n-backup-$(Get-Date -Format 'yyyyMMdd').zip"
+     Compress-Archive -Path data,.env.prod -DestinationPath "n8n-backup-$(Get-Date -Format 'yyyyMMdd').zip"
      ```
    - En cas d'erreur après mise à jour :
      - Vérifiez la compatibilité des versions
@@ -276,9 +269,8 @@ Pour toute question ou problème :
      netstat -ano | findstr "80 443"
      ```
    - Problèmes de proxy :
-     - Vérifiez la configuration Traefik
-     - Assurez-vous que les labels Docker sont corrects
-     - Vérifiez les règles de routage dans compose.prod.yaml
+     - Vérifiez la configuration Nginx
+     - Vérifiez les règles de routage dans nginx/conf.d/default.conf
 
 8. **Problèmes spécifiques à Lightsail** :
    - Vérifiez les groupes de sécurité
