@@ -27,6 +27,8 @@ services:
       - N8N_PUBLIC_API_URL=${N8N_DOMAIN}/api/
       - N8N_WEBHOOK_TUNNEL_URL=${N8N_DOMAIN}/webhook/
       - N8N_WEBHOOK_BASE_URL=${N8N_DOMAIN}/webhook/
+      - WEBHOOK_URL=${N8N_DOMAIN}/webhook/
+      - N8N_WEBHOOKS_HOST=${N8N_DOMAIN}
     expose:
       - "5678"
     restart: unless-stopped
