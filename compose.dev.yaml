@@ -25,3 +25,8 @@ services:
       service: adminer
     ports:
       - "8080:8080"
+
+  portainer:
+    extends:
+      file: compose.common.yaml
+      service: portainer

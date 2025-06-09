@@ -9,8 +9,9 @@ function Write-ColorOutput($ForegroundColor) {
 
 function Show-Urls {
     Write-Output "`n=== URLs des services ==="
-    Write-ColorOutput Green "n8n:     http://localhost:5678"
-    Write-ColorOutput Green "Adminer: http://localhost:8080"
+    Write-ColorOutput Green "n8n:      http://localhost:5678"
+    Write-ColorOutput Green "Adminer:  http://localhost:8080"
+    Write-ColorOutput Green "Portainer: http://localhost:9000"
     Write-Output ""
 }
 

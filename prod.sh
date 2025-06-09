@@ -46,7 +46,7 @@ check_dns() {
     echo "Domaine de base: $base_domain"
     
     # Liste des sous-domaines à vérifier
-    local subdomains=("n8n" "adminer")
+    local subdomains=("n8n" "adminer" "portainer")
     
     for subdomain in "${subdomains[@]}"; do
         local full_domain="${subdomain}.${base_domain}"
@@ -114,6 +114,13 @@ check_services() {
         else
             warn "Adminer ne répond pas correctement"
         fi
+        
+        # Vérifier l'accès à Portainer
+        if curl -s -o /dev/null -w "%{http_code}" http://localhost:9000 | grep -q "200\|301\|302"; then
+            echo -e "${GREEN}✓ Portainer répond correctement${NC}"
+        else
+            warn "Portainer ne répond pas correctement"
+        fi
     else
         warn "Certains services ne sont pas en cours d'exécution"
     fi
@@ -130,14 +137,16 @@ show_urls() {
     fi
     
     echo -e "\n${BLUE}=== URLs des services ===${NC}"
-    echo -e "${GREEN}n8n:${NC}     https://${N8N_DOMAIN}"
-    echo -e "${GREEN}Adminer:${NC}  https://adminer.${N8N_DOMAIN#*.}"
+    echo -e "${GREEN}n8n:${NC}       https://${N8N_DOMAIN}"
+    echo -e "${GREEN}Adminer:${NC}    https://adminer.${N8N_DOMAIN#*.}"
+    echo -e "${GREEN}Portainer:${NC}  https://portainer.${N8N_DOMAIN#*.}"
     
     # Afficher aussi les URLs locales
     echo -e "\n${BLUE}=== URLs locales (pour debug) ===${NC}"
-    echo -e "${GREEN}n8n:${NC}     http://localhost:5678"
-    echo -e "${GREEN}Adminer:${NC}  http://localhost:8080"
-    echo -e "${GREEN}Nginx:${NC}    http://localhost:80"
+    echo -e "${GREEN}n8n:${NC}       http://localhost:5678"
+    echo -e "${GREEN}Adminer:${NC}    http://localhost:8080"
+    echo -e "${GREEN}Portainer:${NC}  http://localhost:9000"
+    echo -e "${GREEN}Nginx:${NC}      http://localhost:80"
     echo ""
 }
 

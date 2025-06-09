@@ -36,6 +36,13 @@ services:
       - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
     volumes:
       - ./data/n8n:/home/node/.n8n
+    deploy:
+      resources:
+        limits:
+          memory: 2G  # Limite maximale de mémoire
+          cpus: '2'   # Limite à 2 CPUs
+        reservations:
+          memory: 1G  # Mémoire réservée garantie
 
   n8n-db:
     image: postgres:15-alpine
@@ -52,3 +59,15 @@ services:
     image: adminer:4
     container_name: adminer
     restart: unless-stopped
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./data/portainer:/data
+    ports:
+      - "9000:9000"

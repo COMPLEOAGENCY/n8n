@@ -97,6 +97,7 @@ Configurez votre solution pour :
 2. Créez des enregistrements pour pointer vers votre serveur ou load balancer :
    - `n8n.votre-domaine.com` → Votre serveur ou load balancer
    - `adminer.votre-domaine.com` → Votre serveur ou load balancer
+   - `portainer.votre-domaine.com` → Votre serveur ou load balancer
 
 ## Utilisation
 
@@ -140,11 +141,13 @@ Configurez votre solution pour :
 
 - n8n : `https://n8n.votre-domaine.com`
 - Adminer : `https://adminer.votre-domaine.com`
+- Portainer : `https://portainer.votre-domaine.com`
 
 ### Développement
 
 - n8n : `http://localhost:5678`
 - Adminer : `http://localhost:8080`
+- Portainer : `http://localhost:9000`
 - Nginx : `http://localhost:80`
 
 ## Sécurité

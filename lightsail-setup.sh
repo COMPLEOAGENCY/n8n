@@ -137,6 +137,24 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
+
+server {
+    listen 80;
+    server_name portainer.$DOMAIN;
+
+    location / {
+        proxy_pass http://portainer:9000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        
+        # WebSocket support
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
 EOF
 
 # Sauvegarde des identifiants
@@ -159,6 +177,10 @@ Serveur : n8n-db
 Base de données : n8n_prod
 Utilisateur : n8n_prod
 Mot de passe : $DB_PASSWORD
+
+=== Portainer ===
+URL : https://portainer.$DOMAIN
+Note : Lors de la première connexion, vous devrez créer un compte administrateur
 EOF
 
 # Définir les permissions
@@ -182,7 +204,7 @@ echo -e "\n${GREEN}=== Installation terminée avec succès ===${NC}"
 echo -e "Vos identifiants ont été sauvegardés dans $INSTALL_DIR/credentials.txt"
 echo -e "\n${YELLOW}Prochaines étapes :${NC}"
 echo -e "1. Configurez votre solution de load balancing (AWS Lightsail LB ou autre)"
-echo -e "2. Configurez des certificats SSL pour les domaines n8n.$DOMAIN et adminer.$DOMAIN"
+echo -e "2. Configurez des certificats SSL pour les domaines n8n.$DOMAIN, adminer.$DOMAIN et portainer.$DOMAIN"
 echo -e "3. Configurez les DNS pour pointer vers votre serveur ou load balancer"
 echo -e "4. Démarrez les services avec la commande : cd $INSTALL_DIR && ./prod.sh up"
 echo -e "\nPour plus d'informations, consultez le README.md"
