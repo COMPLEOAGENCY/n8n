@@ -1,6 +1,6 @@
 # n8n Docker Setup
 
-Cette configuration permet de déployer n8n avec Docker, en utilisant Nginx comme reverse proxy et PostgreSQL comme base de données. Bien qu'optimisée pour Amazon Lightsail, cette configuration est compatible avec tout type d'hébergement supportant Docker et Docker Compose.
+Cette configuration permet de déployer n8n avec Docker, en utilisant Nginx comme reverse proxy, PostgreSQL comme base de données et Redis pour les files d'attente et le cache. Le système est configuré en mode queue avec des workers dédiés pour une meilleure performance et stabilité. Bien qu'optimisée pour Amazon Lightsail, cette configuration est compatible avec tout type d'hébergement supportant Docker et Docker Compose.
 
 ## Compatibilité
 
@@ -44,6 +44,16 @@ Cette configuration a été testée sur :
 - `compose.*.yaml` : Définition des services Docker pour les différents environnements
 - `.env.*` : Fichiers de variables d'environnement pour la configuration
 - `*.ps1/*.sh` : Scripts d'automatisation pour Windows (PowerShell) et Linux (Bash)
+
+### Architecture et composants
+
+- **n8n** : Plateforme d'automatisation (service principal, interface utilisateur et API)
+- **n8n-worker** : Service dédié au traitement des tâches en file d'attente
+- **PostgreSQL** : Base de données optimisée pour stocker les workflows et les données
+- **Redis** : Système de cache et de files d'attente pour améliorer les performances
+- **Adminer** : Interface web pour gérer la base de données
+- **Nginx** : Reverse proxy pour accéder à n8n via HTTPS
+- **Portainer** : Interface web pour gérer les conteneurs Docker
 
 ## Installation
 
@@ -142,13 +152,37 @@ Configurez votre solution pour :
 - n8n : `https://n8n.votre-domaine.com`
 - Adminer : `https://adminer.votre-domaine.com`
 - Portainer : `https://portainer.votre-domaine.com`
+- Redis : Service interne (non exposé directement)
 
 ### Développement
 
 - n8n : `http://localhost:5678`
 - Adminer : `http://localhost:8080`
 - Portainer : `http://localhost:9000`
+- Redis : `localhost:6379` (interne uniquement)
 - Nginx : `http://localhost:80`
+
+## Optimisations
+
+### PostgreSQL
+
+La base de données PostgreSQL est optimisée pour les performances avec les configurations suivantes :
+
+- **Intégrité des données** : Checksums activés, WAL séparés
+- **Mémoire** : `shared_buffers=256MB`, `effective_cache_size=768MB`, `work_mem=16MB`
+- **Performances** : Paramètres optimisés pour SSD, gestion améliorée des E/S concurrentes
+- **Surveillance** : Module `pg_stat_statements` activé pour analyser les requêtes
+- **Ressources** : Limitation à 1 Go de RAM et 1 CPU
+
+### Redis
+
+Redis est configuré pour améliorer les performances de n8n :
+
+- **Files d'attente** : Exécution des workflows via Redis (`EXECUTIONS_MODE=queue`)
+- **Cache** : Stockage en mémoire des données fréquemment utilisées (`N8N_CACHE_ENABLED=true`)
+- **Persistance** : Mode AOF activé (`appendonly yes`) pour éviter la perte de données
+- **Gestion mémoire** : Limite à 256 Mo avec politique LRU (`maxmemory-policy allkeys-lru`)
+- **Ressources** : Limitation à 384 Mo de RAM et 0,5 CPU
 
 ## Sécurité
 

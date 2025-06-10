@@ -121,6 +121,20 @@ check_services() {
         else
             warn "Portainer ne répond pas correctement"
         fi
+        
+        # Vérifier Redis (via docker)
+        if docker exec redis redis-cli ping | grep -q "PONG"; then
+            echo -e "${GREEN}✓ Redis répond correctement${NC}"
+        else
+            warn "Redis ne répond pas correctement"
+        fi
+
+        # Vérifier n8n-worker
+        if docker ps --filter "name=n8n-worker" --filter "status=running" | grep -q "n8n-worker"; then
+            echo -e "${GREEN}✓ n8n-worker est en cours d'exécution${NC}"
+        else
+            warn "n8n-worker ne semble pas être en cours d'exécution"
+        fi
     else
         warn "Certains services ne sont pas en cours d'exécution"
     fi
@@ -147,6 +161,7 @@ show_urls() {
     echo -e "${GREEN}Adminer:${NC}    http://localhost:8080"
     echo -e "${GREEN}Portainer:${NC}  http://localhost:9000"
     echo -e "${GREEN}Nginx:${NC}      http://localhost:80"
+    echo -e "${YELLOW}Redis:${NC}      localhost:6379 (interne uniquement)"
     echo ""
 }
 
@@ -192,8 +207,13 @@ case "$1" in
         show_urls
         ;;
     "logs")
-        log "Affichage des logs..."
-        docker compose --env-file .env.prod -f compose.prod.yaml logs -f
+        if [ -z "$2" ]; then
+            log "Affichage des logs de tous les services..."
+            docker compose --env-file .env.prod -f compose.prod.yaml logs -f
+        else
+            log "Affichage des logs pour le service: $2..."
+            docker compose --env-file .env.prod -f compose.prod.yaml logs -f "$2"
+        fi
         ;;
     "ps")
         log "Liste des services..."

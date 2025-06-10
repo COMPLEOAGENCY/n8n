@@ -180,8 +180,21 @@ Mot de passe : $DB_PASSWORD
 
 === Portainer ===
 URL : https://portainer.$DOMAIN
+
+=== Redis ===
+Hôte : redis
+Port : 6379
+Note : Redis est utilisé en interne pour les files d'attente et le cache n8n
 Note : Lors de la première connexion, vous devrez créer un compte administrateur
 EOF
+
+# Création des répertoires de données
+log "Création des répertoires de données..."
+mkdir -p "$INSTALL_DIR/data/n8n"
+mkdir -p "$INSTALL_DIR/data/postgres"
+mkdir -p "$INSTALL_DIR/data/postgres-wal"
+mkdir -p "$INSTALL_DIR/data/portainer"
+mkdir -p "$INSTALL_DIR/data/redis"
 
 # Définir les permissions
 log "Configuration des permissions..."

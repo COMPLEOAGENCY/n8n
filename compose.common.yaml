@@ -1,25 +1,9 @@
 services:
-  traefik:
-    image: traefik:v2.10
-    container_name: traefik
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    ports:
-      - "80:80"
-      - "8080:8080"
-    command:
-      - --api.insecure=true
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --entrypoints.web.address=:80
-
   n8n:
-    image: n8nio/n8n:${N8N_VERSION:-1.80.4}
+    image: n8nio/n8n:${N8N_VERSION:-latest}
     container_name: n8n
     restart: unless-stopped
+    command: start # Commande par défaut pour le service principal
     environment:
       - DB_TYPE=postgresdb
       - DB_POSTGRESDB_DATABASE=${DB_NAME}
@@ -34,15 +18,72 @@ services:
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
       - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
+      # --- Configuration du mode file d'attente (Queue) ---
+      - EXECUTIONS_MODE=queue
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+      - QUEUE_BULL_REDIS_DB=0
+      - QUEUE_BULL_REDIS_PREFIX=n8n:bull
+      # --- Configuration du cache ---
+      - N8N_CACHE_ENABLED=true
+      - N8N_CACHE_BACKEND=redis
+      - N8N_CACHE_REDIS_HOST=redis
+      - N8N_CACHE_REDIS_PORT=6379
+      - N8N_CACHE_REDIS_DB=1
+      - N8N_CACHE_REDIS_PREFIX=n8n:cache
+      # --- Autre ---
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
     volumes:
       - ./data/n8n:/home/node/.n8n
     deploy:
       resources:
         limits:
-          memory: 2G  # Limite maximale de mémoire
-          cpus: '2'   # Limite à 2 CPUs
+          memory: 1G
+          cpus: '1'
         reservations:
-          memory: 1G  # Mémoire réservée garantie
+          memory: 512M
+
+
+
+  n8n-worker:
+    image: n8nio/n8n:${N8N_VERSION:-latest}
+    container_name: n8n-worker
+    restart: unless-stopped
+    command: worker # Commande cruciale pour lancer en mode worker
+    volumes:
+      - ./data/n8n:/home/node/.n8n
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_DATABASE=${DB_NAME}
+      - DB_POSTGRESDB_HOST=n8n-db
+      - DB_POSTGRESDB_USER=${DB_USER}
+      - DB_POSTGRESDB_PASSWORD=${DB_PASSWORD}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
+      # --- Configuration du mode file d'attente (Queue) ---
+      - EXECUTIONS_MODE=queue
+      - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PORT=6379
+      - QUEUE_BULL_REDIS_DB=0
+      - QUEUE_BULL_REDIS_PREFIX=n8n:bull
+      # --- Configuration du cache ---
+      - N8N_CACHE_ENABLED=true
+      - N8N_CACHE_BACKEND=redis
+      - N8N_CACHE_REDIS_HOST=redis
+      - N8N_CACHE_REDIS_PORT=6379
+      - N8N_CACHE_REDIS_DB=1
+      - N8N_CACHE_REDIS_PREFIX=n8n:cache
+      # --- Variables spécifiques au Worker ---
+      - WORKERS_CONCURRENCY=5
+      - N8N_RUNNERS_ENABLED=true
+      - OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=true
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1'
+        reservations:
+          memory: 512M
 
   n8n-db:
     image: postgres:15-alpine
@@ -52,8 +93,47 @@ services:
       - POSTGRES_DB=${DB_NAME}
       - POSTGRES_USER=${DB_USER}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
+      # Optimisations PostgreSQL
+      - POSTGRES_INITDB_ARGS=--data-checksums
+      - POSTGRES_INITDB_WALDIR=/var/lib/postgresql/wal
+      # Configuration mémoire
+      - POSTGRES_SHARED_BUFFERS=256MB
+      - POSTGRES_EFFECTIVE_CACHE_SIZE=768MB
+      - POSTGRES_WORK_MEM=16MB
+      - POSTGRES_MAINTENANCE_WORK_MEM=64MB
+      # Configuration des connexions
+      - POSTGRES_MAX_CONNECTIONS=100
+      # Optimisation des performances
+      - POSTGRES_RANDOM_PAGE_COST=1.1
+      - POSTGRES_EFFECTIVE_IO_CONCURRENCY=200
+      - POSTGRES_WAL_BUFFERS=16MB
+      # Monitoring des requêtes
+      - POSTGRES_SHARED_PRELOAD_LIBRARIES=pg_stat_statements
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
+      - ./data/postgres-wal:/var/lib/postgresql/wal
+    deploy:
+      resources:
+        limits:
+          memory: 1G  # Limite maximale de mémoire
+          cpus: '1'   # Limite à 1 CPU
+        reservations:
+          memory: 512M  # Mémoire réservée garantie
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c effective_cache_size=768MB
+      -c work_mem=16MB
+      -c maintenance_work_mem=64MB
+      -c max_connections=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c wal_buffers=16MB
+      -c shared_preload_libraries=pg_stat_statements
+      -c pg_stat_statements.max=10000
+      -c pg_stat_statements.track=all
+      -c statement_timeout=60000
+      -c idle_in_transaction_session_timeout=60000
 
   adminer:
     image: adminer:4
@@ -71,3 +151,18 @@ services:
       - ./data/portainer:/data
     ports:
       - "9000:9000"
+      
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - ./data/redis:/data
+    deploy:
+      resources:
+        limits:
+          memory: 384M  # Limite maximale de mémoire
+          cpus: '0.5'   # Limite à 0.5 CPU
+        reservations:
+          memory: 256M  # Mémoire réservée garantie

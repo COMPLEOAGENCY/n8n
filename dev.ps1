@@ -12,6 +12,7 @@ function Show-Urls {
     Write-ColorOutput Green "n8n:      http://localhost:5678"
     Write-ColorOutput Green "Adminer:  http://localhost:8080"
     Write-ColorOutput Green "Portainer: http://localhost:9000"
+    Write-ColorOutput Yellow "Redis:    http://localhost:6379 (interne uniquement)"
     Write-Output ""
 }
 
@@ -44,8 +45,14 @@ switch ($command) {
         Show-Urls
     }
     "logs" {
-        Write-ColorOutput Green "[INFO] Affichage des logs..."
-        docker compose --env-file .env.dev -f compose.dev.yaml logs -f
+        if ($args.Count -gt 1) {
+            $service = $args[1]
+            Write-ColorOutput Green "[INFO] Affichage des logs pour le service: $service..."
+            docker compose --env-file .env.dev -f compose.dev.yaml logs -f $service
+        } else {
+            Write-ColorOutput Green "[INFO] Affichage des logs de tous les services..."
+            docker compose --env-file .env.dev -f compose.dev.yaml logs -f
+        }
     }
     "urls" {
         Show-Urls

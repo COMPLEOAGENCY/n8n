@@ -30,3 +30,20 @@ services:
     extends:
       file: compose.common.yaml
       service: portainer
+    ports:
+      - "9000:9000"
+    security_opt: []
+
+  redis:
+    extends:
+      file: compose.common.yaml
+      service: redis
+    ports:
+      - "6379:6379"
+
+  n8n-worker:
+    extends:
+      file: compose.common.yaml
+      service: n8n-worker
+    environment:
+      - NODE_ENV=development

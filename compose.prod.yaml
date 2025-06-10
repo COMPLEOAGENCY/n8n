@@ -50,3 +50,20 @@ services:
     expose:
       - "9000"
     restart: unless-stopped
+    security_opt: []
+
+  redis:
+    extends:
+      file: compose.common.yaml
+      service: redis
+    restart: unless-stopped
+
+  n8n-worker:
+    extends:
+      file: compose.common.yaml
+      service: n8n-worker
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+
+
