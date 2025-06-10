@@ -121,13 +121,15 @@ Configurez votre solution pour :
 ./prod.sh up
 
 # Autres commandes disponibles
-./prod.sh down     # Arrêter les services
-./prod.sh restart  # Redémarrer les services
-./prod.sh logs     # Voir les logs
-./prod.sh ps       # État des services
-./prod.sh urls     # Afficher les URLs
-./prod.sh check    # Vérifier l'état des services
-./prod.sh help     # Aide
+./prod.sh down                # Arrêter les services
+./prod.sh restart             # Redémarrer les services
+./prod.sh logs                # Voir les logs de tous les services
+./prod.sh logs n8n           # Voir les logs du service principal n8n
+./prod.sh logs n8n-worker    # Voir les logs du worker n8n
+./prod.sh ps                  # État des services
+./prod.sh urls                # Afficher les URLs
+./prod.sh check               # Vérifier l'état des services
+./prod.sh help                # Aide
 ```
 
 ### En Développement (Windows)
@@ -137,12 +139,13 @@ Configurez votre solution pour :
 .\dev.ps1 up
 
 # Autres commandes disponibles
-.\dev.ps1 down     # Arrêter les services
-.\dev.ps1 restart  # Redémarrer les services
-.\dev.ps1 logs     # Voir les logs
-.\dev.ps1 ps       # État des services
-.\dev.ps1 urls     # Afficher les URLs
-.\dev.ps1 help     # Aide
+.\dev.ps1 down                # Arrêter les services
+.\dev.ps1 restart             # Redémarrer les services
+.\dev.ps1 logs                # Voir les logs de tous les services
+.\dev.ps1 logs n8n           # Voir les logs du service principal n8n
+.\dev.ps1 logs n8n-worker    # Voir les logs du worker n8n
+.\dev.ps1 urls                # Afficher les URLs
+.\dev.ps1 help                # Aide
 ```
 
 ## Accès aux Services
@@ -174,15 +177,52 @@ La base de données PostgreSQL est optimisée pour les performances avec les con
 - **Surveillance** : Module `pg_stat_statements` activé pour analyser les requêtes
 - **Ressources** : Limitation à 1 Go de RAM et 1 CPU
 
-### Redis
+### Redis et Workers
 
 Redis est configuré pour améliorer les performances de n8n :
 
-- **Files d'attente** : Exécution des workflows via Redis (`EXECUTIONS_MODE=queue`)
+- **Mode Queue** : Exécution des workflows via Redis (`EXECUTIONS_MODE=queue`)
+- **Workers dédiés** : Service `n8n-worker` séparé pour traiter les tâches en file d'attente
+- **Concurrence** : Traitement simultané de plusieurs workflows (`WORKERS_CONCURRENCY=5`)
+- **Exécutions manuelles** : Déchargement vers les workers (`OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=true`)
 - **Cache** : Stockage en mémoire des données fréquemment utilisées (`N8N_CACHE_ENABLED=true`)
 - **Persistance** : Mode AOF activé (`appendonly yes`) pour éviter la perte de données
 - **Gestion mémoire** : Limite à 256 Mo avec politique LRU (`maxmemory-policy allkeys-lru`)
 - **Ressources** : Limitation à 384 Mo de RAM et 0,5 CPU
+
+### Surveillance des Workers et Files d'Attente
+
+Pour surveiller efficacement le système en mode queue avec workers :
+
+- **Logs des workers** : Consultez les logs spécifiques au worker
+  ```bash
+  # En production
+  ./prod.sh logs n8n-worker
+  
+  # En développement
+  .\dev.ps1 logs n8n-worker
+  ```
+
+- **État des services** : Vérifiez que le worker est bien en cours d'exécution
+  ```bash
+  ./prod.sh check
+  ```
+
+- **Surveillance Redis** : Accédez à la console Redis pour vérifier les files d'attente
+  ```bash
+  docker exec -it redis redis-cli
+  # Liste des clés dans la base de données 0 (file d'attente)
+  SELECT 0
+  KEYS n8n:bull:*
+  # Liste des clés dans la base de données 1 (cache)
+  SELECT 1
+  KEYS n8n:cache:*
+  ```
+
+- **Métriques de performance** : Surveillez les ressources utilisées par les services
+  ```bash
+  docker stats n8n n8n-worker redis n8n-db
+  ```
 
 ## Sécurité
 
@@ -278,8 +318,30 @@ Pour toute question ou problème :
    - Pour PostgreSQL :
      - Ajustez shared_buffers dans compose.prod.yaml
      - Limitez les workflows lourds en parallèle
+   - Pour les workers :
+     - Ajustez WORKERS_CONCURRENCY dans compose.common.yaml selon vos besoins
+     - Augmentez les ressources du worker si nécessaire
 
-6. **Problèmes de mise à jour** :
+6. **Problèmes avec les workers et files d'attente** :
+   - Les workflows restent bloqués en attente :
+     - Vérifiez que le service n8n-worker est en cours d'exécution :
+       ```bash
+       ./prod.sh check
+       ```
+     - Consultez les logs du worker :
+       ```bash
+       ./prod.sh logs n8n-worker
+       ```
+     - Vérifiez la connexion à Redis :
+       ```bash
+       docker exec -it redis redis-cli ping
+       ```
+     - Redémarrez le worker si nécessaire :
+       ```bash
+       docker compose --env-file .env.prod -f compose.prod.yaml restart n8n-worker
+       ```
+
+7. **Problèmes de mise à jour** :
    - Sauvegardez avant toute mise à jour :
      ```bash
      # Sur Linux
@@ -297,7 +359,7 @@ Pour toute question ou problème :
        docker compose up -d
        ```
 
-7. **Problèmes réseau** :
+8. **Problèmes réseau** :
    - Ports déjà utilisés :
      ```bash
      # Vérifiez les ports utilisés
@@ -309,7 +371,7 @@ Pour toute question ou problème :
      - Vérifiez la configuration Nginx
      - Vérifiez les règles de routage dans nginx/conf.d/default.conf
 
-8. **Problèmes spécifiques à Lightsail** :
+9. **Problèmes spécifiques à Lightsail** :
    - Vérifiez les groupes de sécurité
    - Assurez-vous que l'IP statique est attachée
    - Configurez le pare-feu Lightsail :
