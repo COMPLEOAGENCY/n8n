@@ -90,40 +90,48 @@ check_dns() {
 check_services() {
     echo -e "\n${BLUE}=== Vérification des services ===${NC}"
     
+    # Charger les variables d'environnement
+    if [ -f .env.prod ]; then
+        source .env.prod
+    fi
+    
     # Vérifier si les conteneurs sont en cours d'exécution
     if docker compose --env-file .env.prod -f compose.prod.yaml ps | grep -q "Up"; then
         echo -e "${GREEN}✓ Les services sont en cours d'exécution${NC}"
         
-        # Vérifier l'accès à Nginx
-        if curl -s -o /dev/null -w "%{http_code}" http://localhost:80 | grep -q "200\|301\|302"; then
-            echo -e "${GREEN}✓ Nginx répond correctement${NC}"
+        # En production, nous vérifions principalement que les conteneurs sont en cours d'exécution
+        # car les services peuvent ne pas être accessibles directement via localhost
+        
+        # Vérifier n8n via docker
+        if docker ps --filter "name=n8n$" --filter "status=running" | grep -q "n8n"; then
+            echo -e "${GREEN}✓ n8n est en cours d'exécution${NC}"
         else
-            warn "Nginx ne répond pas correctement"
+            warn "n8n ne semble pas être en cours d'exécution"
         fi
         
-        # Vérifier l'accès à n8n
-        if curl -s -o /dev/null -w "%{http_code}" http://localhost:5678 | grep -q "200\|301\|302"; then
-            echo -e "${GREEN}✓ n8n répond correctement${NC}"
+        # Vérifier Nginx via docker
+        if docker ps --filter "name=nginx" --filter "status=running" | grep -q "nginx"; then
+            echo -e "${GREEN}✓ Nginx est en cours d'exécution${NC}"
         else
-            warn "n8n ne répond pas correctement"
+            warn "Nginx ne semble pas être en cours d'exécution"
         fi
         
-        # Vérifier l'accès à Adminer
-        if curl -s -o /dev/null -w "%{http_code}" http://localhost:8080 | grep -q "200\|301\|302"; then
-            echo -e "${GREEN}✓ Adminer répond correctement${NC}"
+        # Vérifier Adminer via docker
+        if docker ps --filter "name=adminer" --filter "status=running" | grep -q "adminer"; then
+            echo -e "${GREEN}✓ Adminer est en cours d'exécution${NC}"
         else
-            warn "Adminer ne répond pas correctement"
+            warn "Adminer ne semble pas être en cours d'exécution"
         fi
         
-        # Vérifier l'accès à Portainer
-        if curl -s -o /dev/null -w "%{http_code}" http://localhost:9000 | grep -q "200\|301\|302"; then
-            echo -e "${GREEN}✓ Portainer répond correctement${NC}"
+        # Vérifier Portainer via docker
+        if docker ps --filter "name=portainer" --filter "status=running" | grep -q "portainer"; then
+            echo -e "${GREEN}✓ Portainer est en cours d'exécution${NC}"
         else
-            warn "Portainer ne répond pas correctement"
+            warn "Portainer ne semble pas être en cours d'exécution"
         fi
         
         # Vérifier Redis (via docker)
-        if docker exec redis redis-cli ping | grep -q "PONG"; then
+        if docker exec redis redis-cli ping 2>/dev/null | grep -q "PONG"; then
             echo -e "${GREEN}✓ Redis répond correctement${NC}"
         else
             warn "Redis ne répond pas correctement"
@@ -135,6 +143,11 @@ check_services() {
         else
             warn "n8n-worker ne semble pas être en cours d'exécution"
         fi
+        
+        echo -e "\n${YELLOW}Note: Pour vérifier l'accès complet aux services, utilisez les URLs:${NC}"
+        echo -e "   n8n: https://${N8N_DOMAIN}"
+        echo -e "   Adminer: https://adminer.${N8N_DOMAIN#n8n.}"
+        echo -e "   Portainer: https://portainer.${N8N_DOMAIN#n8n.}"
     else
         warn "Certains services ne sont pas en cours d'exécution"
     fi
