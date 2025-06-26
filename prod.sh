@@ -175,6 +175,18 @@ show_urls() {
     echo -e "${GREEN}Portainer:${NC}  http://localhost:9000"
     echo -e "${GREEN}Nginx:${NC}      http://localhost:80"
     echo -e "${YELLOW}Redis:${NC}      localhost:6379 (interne uniquement)"
+    
+    # Ajout des URLs de monitoring
+    echo -e "\n${BLUE}=== URLs de monitoring ===${NC}"
+    echo -e "${BLUE}Grafana:${NC}    https://grafana.${N8N_DOMAIN#*.}"
+    echo -e "${BLUE}Prometheus:${NC} https://prometheus.${N8N_DOMAIN#*.}"
+    echo -e "${BLUE}cAdvisor:${NC}   https://cadvisor.${N8N_DOMAIN#*.}"
+    
+    # Afficher aussi les URLs locales de monitoring
+    echo -e "\n${BLUE}=== URLs locales de monitoring (pour debug) ===${NC}"
+    echo -e "${BLUE}Grafana:${NC}    http://localhost:3000"
+    echo -e "${BLUE}Prometheus:${NC} http://localhost:9090"
+    echo -e "${BLUE}cAdvisor:${NC}   http://localhost:8081"
     echo ""
 }
 
@@ -184,7 +196,8 @@ show_help() {
     echo ""
     echo "Commands:"
     echo "  up        - Démarre les services en mode détaché"
-    echo "  down      - Arrête les services"
+    echo "  up-all    - Démarre services + monitoring"
+    echo "  down      - Arrête prod + monitoring (supprime le réseau)"
     echo "  restart   - Redémarre les services"
     echo "  logs      - Affiche les logs des services"
     echo "  ps        - Liste les services en cours d'exécution"
@@ -200,20 +213,41 @@ case "$1" in
         log "Vérification des DNS..."
         check_dns
         log "Démarrage des services..."
-        docker compose --env-file .env.prod -f compose.prod.yaml up -d
+        docker compose --env-file .env.prod -f compose.prod.yaml up -d 2>&1 | grep -v 'Found orphan containers'
         log "Vérification des services..."
         sleep 5  # Attendre que les services démarrent
         check_services
         show_urls
         ;;
+    "up-all")
+        log "Vérification des DNS..."
+        check_dns
+        log "Démarrage des services de production..."
+        docker compose --env-file .env.prod -f compose.prod.yaml up -d 2>&1 | grep -v 'Found orphan containers'
+        log "Démarrage de la stack monitoring..."
+        docker compose -f compose.monitoring.yaml up -d 2>&1 | grep -v 'Found orphan containers'
+        log "Vérification des services..."
+        sleep 5
+        check_services
+        show_urls
+        ;;
     "down")
-        log "Arrêt des services..."
+        log "Arrêt de la stack monitoring..."
+        docker compose -f compose.monitoring.yaml down
+        log "Arrêt des services de production..."
         docker compose --env-file .env.prod -f compose.prod.yaml down
         ;;
     "restart")
-        log "Redémarrage des services..."
+        # Vérifier si la stack monitoring est lancée
+        monitoring_running=$(docker ps --format '{{.Names}}' | grep -E 'prometheus|grafana|cadvisor')
+        if [ -n "$monitoring_running" ]; then
+            log "Redémarrage de la stack monitoring..."
+            docker compose -f compose.monitoring.yaml down
+            docker compose -f compose.monitoring.yaml up -d 2>&1 | grep -v 'Found orphan containers'
+        fi
+        log "Redémarrage des services de production..."
         docker compose --env-file .env.prod -f compose.prod.yaml down
-        docker compose --env-file .env.prod -f compose.prod.yaml up -d
+        docker compose --env-file .env.prod -f compose.prod.yaml up -d 2>&1 | grep -v 'Found orphan containers'
         log "Vérification des services..."
         sleep 5  # Attendre que les services démarrent
         check_services

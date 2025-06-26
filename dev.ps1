@@ -13,16 +13,23 @@ function Show-Urls {
     Write-ColorOutput Green "Adminer:  http://localhost:8080"
     Write-ColorOutput Green "Portainer: http://localhost:9000"
     Write-ColorOutput Yellow "Redis:    http://localhost:6379 (interne uniquement)"
+    
+    # Ajout des URLs de monitoring
+    Write-Output "`n=== URLs de monitoring ==="
+    Write-ColorOutput Blue "Grafana:    http://localhost:3000"
+    Write-ColorOutput Blue "Prometheus: http://localhost:9090"
+    Write-ColorOutput Blue "cAdvisor:   http://localhost:8081"  # cAdvisor utilise le port 8081 en externe
     Write-Output ""
 }
 
 function Show-Help {
     Write-Output "Usage: .\dev.ps1 [command]`n"
     Write-Output "Commands:"
-    Write-Output "  up      - Démarre les services en mode détaché"
-    Write-Output "  down    - Arrête les services"
-    Write-Output "  restart - Redémarre les services"
-    Write-Output "  logs    - Affiche les logs des services"
+    Write-Output "  up        - Démarre les services en mode détaché"
+    Write-Output "  up-all    - Démarre services + monitoring"
+    Write-Output "  down      - Arrête dev + monitoring (supprime le réseau)"
+    Write-Output "  restart   - Redémarre les services"
+    Write-Output "  logs      - Affiche les logs des services"
     Write-Output ""
 }
 
@@ -31,17 +38,34 @@ $command = $args[0]
 switch ($command) {
     "up" {
         Write-ColorOutput Green "[INFO] Démarrage des services..."
-        docker compose --env-file .env.dev -f compose.dev.yaml up -d
+        docker compose --env-file .env.dev -f compose.dev.yaml up -d 2>&1 | Select-String -NotMatch 'Found orphan containers'
+        Show-Urls
+    }
+    "up-all" {
+        Write-ColorOutput Green "[INFO] Démarrage des services de développement..."
+        docker compose --env-file .env.dev -f compose.dev.yaml up -d 2>&1 | Select-String -NotMatch 'Found orphan containers'
+        Write-ColorOutput Green "[INFO] Démarrage de la stack monitoring..."
+        docker compose -f compose.monitoring.yaml up -d 2>&1 | Select-String -NotMatch 'Found orphan containers'
         Show-Urls
     }
     "down" {
-        Write-ColorOutput Green "[INFO] Arrêt des services..."
+        Write-ColorOutput Green "[INFO] Arrêt de la stack monitoring..."
+        docker compose -f compose.monitoring.yaml down
+        Write-ColorOutput Green "[INFO] Arrêt des services de développement..."
         docker compose --env-file .env.dev -f compose.dev.yaml down
     }
+
     "restart" {
-        Write-ColorOutput Green "[INFO] Redémarrage des services..."
+        # Vérifier si la stack monitoring est lancée
+        $monitoringRunning = $(docker ps --format '{{.Names}}' | Select-String -Pattern 'prometheus|grafana|cadvisor')
+        if ($monitoringRunning) {
+            Write-ColorOutput Green "[INFO] Redémarrage de la stack monitoring..."
+            docker compose -f compose.monitoring.yaml down
+            docker compose -f compose.monitoring.yaml up -d 2>&1 | Select-String -NotMatch 'Found orphan containers'
+        }
+        Write-ColorOutput Green "[INFO] Redémarrage des services de développement..."
         docker compose --env-file .env.dev -f compose.dev.yaml down
-        docker compose --env-file .env.dev -f compose.dev.yaml up -d
+        docker compose --env-file .env.dev -f compose.dev.yaml up -d 2>&1 | Select-String -NotMatch 'Found orphan containers'
         Show-Urls
     }
     "logs" {

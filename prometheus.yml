@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 15s # Par défaut, collecte toutes les 15 secondes
+
+scrape_configs:
+  - job_name: 'prometheus'
+    # Collecte les métriques de Prometheus lui-même
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'cadvisor'
+    # Collecte les métriques de cAdvisor
+    static_configs:
+      - targets: ['cadvisor:8081'] # Mis à jour pour correspondre au nouveau port interne de cAdvisor
