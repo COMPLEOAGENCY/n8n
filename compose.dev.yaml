@@ -11,6 +11,7 @@ services:
       - N8N_EDITOR_BASE_URL=http://localhost:5678
       - N8N_WEBHOOK_URL=http://localhost:5678
       - N8N_SECURE_COOKIE=false
+      - NODE_FUNCTION_ALLOW_EXTERNAL=ioredis
     ports:
       - "5678:5678"
 
@@ -47,3 +48,4 @@ services:
       service: n8n-worker
     environment:
       - NODE_ENV=development
+      - NODE_FUNCTION_ALLOW_EXTERNAL=ioredis

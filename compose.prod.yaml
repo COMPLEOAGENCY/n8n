@@ -22,6 +22,7 @@ services:
       - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
       - N8N_EDITOR_BASE_URL=${N8N_DOMAIN}
       - WEBHOOK_URL=https://${N8N_DOMAIN}
+      - NODE_FUNCTION_ALLOW_EXTERNAL=ioredis
 
     expose:
       - "5678"
@@ -65,5 +66,6 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=production
+      - NODE_FUNCTION_ALLOW_EXTERNAL=ioredis
 
 
